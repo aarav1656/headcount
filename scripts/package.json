@@ -1,0 +1,20 @@
+{
+  "name": "headcount-scripts",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "init-config": "tsx init-config.ts",
+    "seed-polls": "tsx seed-polls.ts",
+    "check-ed25519": "tsx check-ed25519.ts"
+  },
+  "dependencies": {
+    "@noble/curves": "^2.4.0",
+    "@noble/hashes": "^2.4.0",
+    "@solana/kit": "^6.10.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}
