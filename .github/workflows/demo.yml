@@ -123,6 +123,7 @@ jobs:
           disable-animations: false
           emulator-boot-timeout: 600
           emulator-options: -no-window -no-metrics -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          pre-emulator-launch-script: sed -i "s/^disk.dataPartition.size=.*/disk.dataPartition.size=3G/" $HOME/.android/avd/test.avd/config.ini
           script: bash demo/run-demo.sh
       - name: Upload evidence
         if: always()
