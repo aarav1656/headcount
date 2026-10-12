@@ -1,0 +1,19 @@
+[toolchain]
+anchor_version = "0.32.1"
+
+[features]
+resolution = true
+skip-lint = false
+
+[programs.localnet]
+headcount = "2bgD83ZSF8vehRfEadp5iPW1YGhnMpQDQPD5jZLzCccW"
+
+[programs.devnet]
+headcount = "2bgD83ZSF8vehRfEadp5iPW1YGhnMpQDQPD5jZLzCccW"
+
+[provider]
+cluster = "localnet"
+wallet = "~/.config/solana/id.json"
+
+[scripts]
+test = "cargo test -p headcount -- --nocapture"
