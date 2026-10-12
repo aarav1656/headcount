@@ -38,8 +38,8 @@ The end-to-end script `scripts/e2e-answer.ts` runs against devnet and the live a
 
 Tests:
 
-- `program/`: 15 LiteSVM tests covering the happy path, double answers from one SGT, a foreign attestor, an attestation for a different answerer or SGT, expiry, a missing or misdirected Ed25519 instruction, the answer cap and refund, and tier rules. Removing the attestor check or the Seekers-only check turns the matching tests red.
-- `api/`: signed-message byte layout and tamper rejection.
+- `program/`: 16 LiteSVM tests covering the happy path, an unauthorized config bootstrap, double answers from one SGT, a foreign attestor, an attestation for a different answerer or SGT, expiry, a missing or misdirected Ed25519 instruction, the answer cap and refund, and tier rules. Removing the attestor check or the Seekers-only check turns the matching tests red.
+- `api/`: signed-message byte layout, tamper rejection, and SGT lookups that reject a mint claiming the SGT group without belonging to it.
 - `app/`: instruction builders, Ed25519 layout and PDA derivation.
 
 ## Run it
