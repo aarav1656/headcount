@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Headcount</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Newsreader:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#F3EEE3;--paper2:#E9E2D3;--ink:#17150F;--ink2:#4A453B;--ink3:#8A8374;--tally:#C7361F}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#2a2720;height:100%;overflow:hidden}
+body{font-family:'Newsreader',Georgia,serif;color:var(--ink)}
+.slide{position:absolute;left:0;top:0;width:1920px;height:1080px;background:var(--paper);display:none;transform-origin:0 0;padding:56px 96px 0;overflow:hidden}
+.slide.on{display:flex;flex-direction:column}
+.mast{display:flex;justify-content:space-between;align-items:baseline;padding-bottom:16px;border-bottom:3px solid var(--ink);position:relative;flex:none}
+.mast::after{content:"";position:absolute;left:0;right:0;bottom:-9px;border-bottom:1px solid var(--ink)}
+.mast b{font-weight:700;font-size:44px;letter-spacing:4px;text-transform:uppercase}
+.mono,.lab{font-family:'IBM Plex Mono',monospace}
+.lab{font-weight:500;font-size:22px;letter-spacing:2.4px;text-transform:uppercase;color:var(--ink2)}
+.lab.red{color:var(--tally)}
+.body{flex:1;display:flex;flex-direction:column;padding-top:56px;min-height:0}
+.foot{flex:none;height:64px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--ink);font-family:'IBM Plex Mono',monospace;font-size:20px;letter-spacing:2px;color:var(--ink2);text-transform:uppercase}
+h1,h2{font-weight:700;letter-spacing:-.5px;line-height:1.04}
+h2{font-size:92px;max-width:1500px}
+h1{font-size:150px;line-height:1}
+.deck{font-size:38px;line-height:1.35;color:var(--ink2);max-width:1250px;font-weight:400}
+.red{color:var(--tally)}
+.cols{display:flex;gap:96px;flex:1;min-height:0}
+.cols>div{min-width:0}
+.shot{display:block;border:1px solid var(--ink);height:100%;width:auto}
+.rows{border-top:1px solid var(--ink)}
+.rows>div{border-bottom:1px solid var(--ink);padding:22px 0;display:flex;gap:32px;align-items:baseline}
+.rows .k{font-family:'IBM Plex Mono',monospace;font-weight:500;font-size:22px;letter-spacing:2.4px;text-transform:uppercase;color:var(--tally);width:230px;flex:none}
+.rows .v{font-size:34px;line-height:1.3}
+.rows .v.m{font-family:'IBM Plex Mono',monospace;font-size:26px;word-break:break-all}
+blockquote{border-top:3px solid var(--ink);border-bottom:1px solid var(--ink);padding:36px 0;font-weight:500;font-size:60px;line-height:1.18;max-width:1500px}
+cite{display:block;margin-top:28px;font-style:normal;font-family:'IBM Plex Mono',monospace;font-size:24px;letter-spacing:1.6px;color:var(--ink2);text-transform:none}
+.steps{display:grid;grid-template-columns:repeat(4,1fr);border-top:3px solid var(--ink);border-bottom:1px solid var(--ink);margin-top:20px}
+.steps>div{padding:32px 32px 36px;border-left:1px solid var(--ink);position:relative}
+.steps>div:first-child{border-left:0;padding-left:0}
+.steps .n{font-weight:700;font-size:96px;line-height:1;color:var(--tally)}
+.steps h3{font-weight:600;font-size:40px;line-height:1.1;margin:18px 0 16px}
+.steps p{font-size:28px;line-height:1.35;color:var(--ink2)}
+.steps code{font-family:'IBM Plex Mono',monospace;font-size:22px;color:var(--ink);background:var(--paper2);padding:2px 6px}
+.steps .ar{position:absolute;right:-18px;top:62px;width:36px;height:36px;background:var(--paper);font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:30px;color:var(--ink);text-align:center;line-height:36px;z-index:2}
+.bar{height:44px;border:1px solid var(--ink);margin:10px 0 28px;position:relative}
+.bar i{position:absolute;left:0;top:0;bottom:0;display:block}
+.bar.t{border-color:var(--tally)}
+.bar.t i{background:var(--tally)}
+.bar.a i{background:repeating-linear-gradient(135deg,var(--ink) 0 3px,transparent 3px 9px)}
+.big{font-weight:700;font-size:200px;line-height:.95;font-variant-numeric:tabular-nums}
+.stamp{display:inline-block;border:3px solid var(--tally);color:var(--tally);font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:26px;letter-spacing:3px;padding:10px 18px;transform:rotate(-2deg);text-transform:uppercase}
+.nav{position:fixed;right:16px;bottom:12px;font:12px 'IBM Plex Mono',monospace;color:#a89f8a}
+@page{size:1920px 1080px;margin:0}
+@media print{
+ html,body{overflow:visible;height:auto;background:var(--paper)}
+ .slide{display:flex!important;flex-direction:column;position:relative;transform:none!important;break-after:page;page-break-after:always}
+ .nav{display:none}
+ *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+.r8>div{padding:36px 0}.r8 .v{font-size:40px}.r8 .v.m{font-size:34px}.r8 .k{font-size:24px;width:300px}
+.steps h3{font-size:50px!important}.steps p{font-size:34px!important}.steps code{font-size:26px!important}.steps>div{padding-top:44px!important;padding-bottom:56px!important}.steps .n{font-size:120px!important}.steps .ar{font-size:44px!important;width:44px;height:44px;line-height:44px;right:-22px!important;top:76px!important}
+</style></head><body>
+
+<!-- 1 -->
+<section class="slide"><div class="mast"><b>Headcount</b><span class="lab">Oct 12 · №1</span></div>
+<div class="body" style="justify-content:center;padding-top:0">
+<div class="lab red" style="margin-bottom:40px">Solana Mobile · Seeker · Mobile Wallet Adapter</div>
+<h1 style="max-width:1650px">Polls where every answer comes from a different phone.</h1>
+<p class="deck" style="margin-top:56px">Answer a poll on a Seeker, get paid in SKR. One phone, one voice.</p>
+</div>
+<div class="foot"><span>Headcount counts phones, not wallets</span><span>1 / 10</span></div></section>
+
+<!-- 2 -->
+<section class="slide"><div class="mast"><b>Headcount</b><span class="lab">Oct 12 · №2</span></div>
+<div class="body"><div class="lab red" style="margin-bottom:28px">The problem</div>
+<h2>Every open survey and airdrop in crypto gets farmed.</h2>
+<p class="deck" style="margin-top:36px">A wallet costs nothing. A thousand wallets cost nothing more. Any count of wallets is a count of whoever made the most.</p>
+<div style="flex:1"></div>
+<blockquote>Solana Mobile changed the Seed Vault daily score to reward &ldquo;natural Seed Vault Wallet use over activity manufactured to game the score&rdquo;.<cite>Solana Mobile, x.com/solanamobile/status/2090472369840382175</cite></blockquote>
+<div style="height:48px"></div></div>
+<div class="foot"><span>The problem</span><span>2 / 10</span></div></section>
+
+<!-- 3 -->
+<section class="slide"><div class="mast"><b>Headcount</b><span class="lab">Oct 12 · №3</span></div>
+<div class="body" style="justify-content:center;padding-top:0"><div class="lab red" style="margin-bottom:28px">The insight</div>
+<h2>The Seeker Genesis Token is one per device.</h2>
+<div class="rows" style="margin-top:64px;max-width:1700px">
+<div><span class="k">Key</span><span class="v">Headcount keys each answer to the phone&rsquo;s SGT, not the wallet.</span></div>
+<div><span class="k">Result</span><span class="v">A thousand wallets on one phone still count once.</span></div>
+<div><span class="k">Signal</span><span class="v">Every answer in a Seekers-only poll is one phone, one voice.</span></div>
+</div></div>
+<div class="foot"><span>The insight</span><span>3 / 10</span></div></section>
+
+<!-- 4 -->
+<section class="slide"><div class="mast"><b>Headcount</b><span class="lab">Oct 12 · №4</span></div>
+<div class="body" style="padding-top:36px"><div class="lab red" style="margin-bottom:20px">The product</div>
+<div class="cols" style="gap:72px;padding-bottom:28px">
+<div style="display:flex;flex-direction:column;gap:20px;height:100%"><div style="flex:1;min-height:0"><img class="shot" src="img/01-today.png" alt="Today screen"></div><div style="font-size:32px;font-weight:600">Today<div class="lab" style="margin-top:6px;font-size:20px">Open ballots, paid in SKR</div></div></div>
+<div style="display:flex;flex-direction:column;gap:20px;height:100%"><div style="flex:1;min-height:0"><img class="shot" src="img/02-poll-ballot.png" alt="Ballot screen"></div><div style="font-size:32px;font-weight:600">Ballot<div class="lab" style="margin-top:6px;font-size:20px">One choice, one cast bar</div></div></div>
+<div style="display:flex;flex-direction:column;gap:20px;height:100%"><div style="flex:1;min-height:0"><img class="shot" src="img/05-results-receipt.png" alt="Receipt screen"></div><div style="font-size:32px;font-weight:600">Receipt<div class="lab" style="margin-top:6px;font-size:20px">Counted, +5.00 SKR, signature</div></div></div>
+
+</div></div>
+<div class="foot"><span>The product</span><span>4 / 10</span></div></section>
+
+<!-- 5 -->
+<section class="slide"><div class="mast"><b>Headcount</b><span class="lab">Oct 12 · №5</span></div>
+<div class="body" style="padding-top:44px"><div class="lab red" style="margin-bottom:20px">How it works</div>
+<h2 style="font-size:76px">One transaction verifies the phone and pays the answer.</h2>
+<div class="steps" style="margin-top:72px">
+<div><div class="n">1</div><h3>Wallet signs in</h3><p>Mobile Wallet Adapter connects the wallet on the Seeker.</p><span class="ar">▸</span></div>
+<div><div class="n">2</div><h3>Attestor reads mainnet</h3><p>It finds the SGT and signs an Ed25519 attestation.</p><span class="ar">▸</span></div>
+<div><div class="n">3</div><h3>One transaction verifies</h3><p>The program checks the attestation and records the answer at <code>["answer", poll, identity]</code>.</p><span class="ar">▸</span></div>
+<div><div class="n">4</div><h3>Same instruction pays</h3><p>The reward moves from the poll vault to the answerer.</p></div>
+</div></div>
+<div class="foot"><span>How it works</span><span>5 / 10</span></div></section>
+
+<!-- 6 -->
+<section class="slide"><div class="mast"><b>Headcount</b><span class="lab">Oct 12 · №6</span></div>
+<div class="body" style="padding-top:36px"><div class="lab red" style="margin-bottom:20px">The bot gap</div>
+<div class="cols" style="gap:96px;padding-bottom:28px">
+<div style="flex:none;height:100%"><img class="shot" src="img/06-results-bars-crop.png" alt="Results with Seeker phones and all answers bars"></div>
+<div style="flex:1;display:flex;flex-direction:column;justify-content:center">
+<h2 style="font-size:80px">Every option prints two bars.</h2>
+<div class="rows" style="margin-top:48px;max-width:1000px">
+<div><span class="k">Seeker phones</span><span class="v">One answer per device, keyed to the SGT.</span></div>
+<div><span class="k" style="color:var(--ink)">All answers</span><span class="v">Every wallet that answered.</span></div></div>
+<p class="deck" style="margin-top:40px;font-size:40px">The difference between the two is the signal the creator pays for.</p>
+</div></div></div>
+<div class="foot"><span>The bot gap</span><span>6 / 10</span></div></section>
+
+<!-- 7 -->
+<section class="slide"><div class="mast"><b>Headcount</b><span class="lab">Oct 12 · №7</span></div>
+<div class="body"><div class="lab red" style="margin-bottom:28px">The SKR loop</div>
+<h2>Projects spend SKR. Seeker owners earn it daily.</h2>
+<div class="rows" style="margin-top:48px;max-width:1700px">
+<div><span class="k">Spend</span><span class="v">Projects fund polls in SKR to hear from real phones.</span></div>
+<div><span class="k">Earn</span><span class="v">Seeker owners earn SKR every day they answer: a reason to open the phone daily.</span></div>
+</div>
+<div style="flex:1"></div>
+<blockquote style="font-size:52px">&ldquo;Build an app for seeker that gets users to spend their skr and buy more phones with skr&rdquo;<cite>toly, x.com/toly/status/2024123405012811967</cite></blockquote>
+<div style="height:40px"></div></div>
+<div class="foot"><span>The SKR loop</span><span>7 / 10</span></div></section>
+
+<!-- 8 -->
+<section class="slide"><div class="mast"><b>Headcount</b><span class="lab">Oct 12 · №8</span></div>
+<div class="body" style="padding-top:36px"><div class="lab red" style="margin-bottom:16px">Proof it runs</div>
+<h2 style="font-size:72px">Live on devnet, end to end.</h2>
+<div class="rows r8" style="margin-top:44px">
+<div><span class="k">Program</span><span class="v m">12kijt3UyT3TGnGbQn9Z4M9qe9uuHyc7ypWhLE57dkF3</span></div>
+<div><span class="k">Attestor</span><span class="v m">headcount-attest.fly.dev</span></div>
+<div><span class="k">Open poll</span><span class="v">A fresh wallet answered, the tally went 2 to 3, and it was paid exactly 5 SKR.</span></div>
+<div><span class="k">Seekers only</span><span class="v">The same wallet is rejected with error 6019.</span></div>
+<div><span class="k">Tests</span><span class="v">15 program tests: tampered attestations, double answers, expiry, misdirected Ed25519. <span style="white-space:nowrap">Mutation-tested.</span></span></div>
+</div></div>
+<div class="foot"><span>Proof it runs</span><span>8 / 10</span></div></section>
+
+<!-- 9 -->
+<section class="slide"><div class="mast"><b>Headcount</b><span class="lab">Oct 12 · №9</span></div>
+<div class="body" style="justify-content:center;padding-top:0"><div class="lab red" style="margin-bottom:28px">Launch</div>
+<h2>Ships to the Solana dApp Store with mainnet SKR.</h2>
+<div class="rows" style="margin-top:64px;max-width:1700px">
+<div><span class="k">Channel</span><span class="v">Solana dApp Store, on the Seeker.</span></div>
+<div><span class="k">Money</span><span class="v">Creators fund polls in real SKR.</span></div>
+<div><span class="k">SKR mint</span><span class="v m">SKRbvo6Gf7GondiT3BbTfuRDPqLWei4j2Qy2NPGZhW3</span></div>
+</div></div>
+<div class="foot"><span>Launch</span><span>9 / 10</span></div></section>
+
+<!-- 10 -->
+<section class="slide"><div class="mast"><b>Headcount</b><span class="lab">Oct 12 · №10</span></div>
+<div class="body" style="justify-content:center;padding-top:0">
+<h1 style="max-width:1650px">Headcount counts phones, not wallets.</h1>
+<div style="margin-top:72px;border-top:3px solid var(--ink);padding-top:28px;font-family:'IBM Plex Mono',monospace;font-size:34px;font-weight:500;letter-spacing:1px">github.com/aarav1656/headcount</div>
+</div>
+<div class="foot"><span>Headcount</span><span>10 / 10</span></div></section>
+
+<script>
+const S=[...document.querySelectorAll('.slide')];let i=Math.max(0,Math.min(S.length-1,(parseInt(location.hash.slice(1))||1)-1));
+function fit(){const k=Math.min(innerWidth/1920,innerHeight/1080);S.forEach(s=>{s.style.transform=`translate(${(innerWidth-1920*k)/2}px,${(innerHeight-1080*k)/2}px) scale(${k})`})}
+function show(n){i=Math.max(0,Math.min(S.length-1,n));S.forEach((s,j)=>s.classList.toggle('on',j==i));history.replaceState(null,'','#'+(i+1))}
+addEventListener('keydown',e=>{if(['ArrowRight','PageDown',' ','ArrowDown'].includes(e.key)){e.preventDefault();show(i+1)}if(['ArrowLeft','PageUp','ArrowUp'].includes(e.key)){e.preventDefault();show(i-1)}if(e.key=='Home')show(0);if(e.key=='End')show(S.length-1)});
+addEventListener('hashchange',()=>show((parseInt(location.hash.slice(1))||1)-1));
+addEventListener('resize',fit);fit();show(i);
+</script></body></html>
