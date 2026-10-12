@@ -48,6 +48,17 @@ if [ "$SIZE" != native ]; then
   adb shell wm density "$DENSITY"
 fi
 adb shell locksettings set-pin "$PIN"
+# setting a credential locks the device at once: wake it, open the bouncer, unlock with the PIN
+sleep 2
+adb shell input keyevent 224
+adb shell wm dismiss-keyguard
+sleep 2
+adb shell input text "$PIN"
+sleep 1
+adb shell input keyevent 66
+sleep 3
+snap 00-unlocked
+adb shell dumpsys window policy | grep -iE 'showing' | head -3
 [ -n "${SMOKE:-}" ] || adb install -r -g "$HEADCOUNT_APK" | tail -1
 adb install -r -g "$WALLET_APK" | tail -1
 adb shell pm list packages | grep -E 'xyz.headcount.app|com.solana.mwallet' || note "apps missing"
