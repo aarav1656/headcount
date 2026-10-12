@@ -337,6 +337,12 @@ pub struct InitConfig<'info> {
     #[account(init, payer = admin, space = 8 + Config::INIT_SPACE, seeds = [b"config"], bump)]
     pub config: Account<'info, Config>,
     pub system_program: Program<'info, System>,
+    #[account(
+        seeds = [crate::ID.as_ref()], bump,
+        seeds::program = anchor_lang::solana_program::bpf_loader_upgradeable::ID,
+        constraint = program_data.upgrade_authority_address == Some(admin.key()) @ HeadcountError::NotAdmin
+    )]
+    pub program_data: Account<'info, ProgramData>,
 }
 
 #[derive(Accounts)]

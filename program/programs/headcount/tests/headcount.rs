@@ -4,7 +4,7 @@ use litesvm::{types::FailedTransactionMetadata, LiteSVM};
 use solana_sdk::{
     clock::Clock,
     ed25519_instruction::new_ed25519_instruction_with_signature,
-    instruction::{Instruction, InstructionError},
+    instruction::{AccountMeta, Instruction, InstructionError},
     program_option::COption,
     program_pack::Pack,
     pubkey::Pubkey,
@@ -92,6 +92,10 @@ fn set_token_account(svm: &mut LiteSVM, addr: Pubkey, mint: Pubkey, owner: Pubke
 }
 
 fn setup() -> Env {
+    setup_uninitialized(true)
+}
+
+fn setup_uninitialized(initialize: bool) -> Env {
     let mut svm = LiteSVM::new();
     svm.add_program_from_file(headcount::ID, "../../target/deploy/headcount.so")
         .expect("run `anchor build` first");
@@ -131,12 +135,33 @@ fn setup() -> Env {
     set_token_account(&mut svm, creator_token, mint, creator.pubkey(), 1_000_000_000);
 
     let config = Pubkey::find_program_address(&[b"config"], &headcount::ID).0;
-    let ix = Instruction {
-        program_id: headcount::ID,
-        accounts: accounts::InitConfig { admin: admin.pubkey(), config, system_program: system_program::ID }.to_account_metas(None),
-        data: instruction::InitConfig { attestor: attestor.pubkey() }.data(),
-    };
-    send(&mut svm, &admin, &[], &[ix]).unwrap();
+    let program_data = program_data_address();
+    let program_bytes = std::fs::read("../../target/deploy/headcount.so").unwrap();
+    let mut data = 3u32.to_le_bytes().to_vec();
+    data.extend_from_slice(&0u64.to_le_bytes());
+    data.push(1);
+    data.extend_from_slice(admin.pubkey().as_ref());
+    data.extend_from_slice(&program_bytes);
+    svm.set_account(program_data, solana_sdk::account::Account {
+        lamports: svm.minimum_balance_for_rent_exemption(data.len()),
+        data,
+        owner: anchor_lang::solana_program::bpf_loader_upgradeable::ID,
+        executable: false,
+        rent_epoch: 0,
+    }).unwrap();
+    let mut data = 2u32.to_le_bytes().to_vec();
+    data.extend_from_slice(program_data.as_ref());
+    svm.set_account(headcount::ID, solana_sdk::account::Account {
+        lamports: svm.minimum_balance_for_rent_exemption(data.len()),
+        data,
+        owner: anchor_lang::solana_program::bpf_loader_upgradeable::ID,
+        executable: true,
+        rent_epoch: 0,
+    }).unwrap();
+    if initialize {
+        let ix = init_config_ix(admin.pubkey(), config, attestor.pubkey(), program_data);
+        send(&mut svm, &admin, &[], &[ix]).unwrap();
+    }
     Env { svm, admin, attestor, creator, mint, creator_token, config }
 }
 
@@ -609,4 +634,48 @@ fn attested_tier_cannot_be_upgraded_and_tier_rules_hold() {
     assert_eq!(custom(&r), Some(code(HeadcountError::InvalidIdentity)), "{:?}", r.err);
     assert_eq!(poll_state(&e, &open).answers, 0);
     assert_eq!(poll_state(&e, &seekers).answers, 0);
+}
+
+fn program_data_address() -> Pubkey {
+    Pubkey::find_program_address(
+        &[headcount::ID.as_ref()],
+        &anchor_lang::solana_program::bpf_loader_upgradeable::ID,
+    ).0
+}
+
+fn init_config_ix(admin: Pubkey, config: Pubkey, attestor: Pubkey, program_data: Pubkey) -> Instruction {
+    Instruction {
+        program_id: headcount::ID,
+        accounts: vec![
+            AccountMeta::new(admin, true),
+            AccountMeta::new(config, false),
+            AccountMeta::new_readonly(system_program::ID, false),
+            AccountMeta::new_readonly(program_data, false),
+        ],
+        data: instruction::InitConfig { attestor }.data(),
+    }
+}
+
+#[test]
+fn unauthorized_bootstrap_cannot_install_attestor_and_drain_vault() {
+    let mut e = setup_uninitialized(false);
+    let attacker = fund(&mut e);
+    let ix = init_config_ix(attacker.pubkey(), e.config, attacker.pubkey(), program_data_address());
+    let result = send(&mut e.svm, &attacker, &[], &[ix]);
+    if result.is_ok() {
+        let poll = create_poll_with(&mut e, 99, 2, NOW + 3600, true).unwrap();
+        for _ in 0..2 {
+            let identity = Pubkey::new_unique();
+            answer_with(&mut e, &poll, &attacker, identity, TIER_SEEKER, 0,
+                &attacker, &attacker.pubkey(), NOW + 600).unwrap();
+        }
+        assert_eq!(token_balance(&e.svm, &vault_pda(&poll)), Some(0));
+        assert_eq!(token_balance(&e.svm, &get_associated_token_address(&attacker.pubkey(), &e.mint)), Some(REWARD * 2));
+    }
+    let rejected = result.expect_err("unauthorized bootstrap installed an attacker attestor and drained the vault");
+    assert_eq!(custom(&rejected), Some(code(HeadcountError::NotAdmin)));
+    assert!(e.svm.get_account(&e.config).map_or(true, |a| a.data.is_empty()));
+    let admin = e.admin.insecure_clone();
+    let ix = init_config_ix(admin.pubkey(), e.config, e.attestor.pubkey(), program_data_address());
+    send(&mut e.svm, &admin, &[], &[ix]).unwrap();
 }
