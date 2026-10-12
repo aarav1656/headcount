@@ -27,8 +27,20 @@ const raw = process.env.CI_FUNDER_KEYPAIR
 if (!raw) throw new Error('CI_FUNDER_KEYPAIR is not set')
 
 const rpc = createSolanaRpc(RPC)
+
+// The public devnet endpoint answers 429 to shared CI addresses now and then.
+async function retry(fn) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fn()
+    } catch (e) {
+      if (attempt >= 6) throw e
+      await new Promise((r) => setTimeout(r, 1500 * attempt))
+    }
+  }
+}
 const funder = await createKeyPairSignerFromBytes(Uint8Array.from(JSON.parse(raw)))
-const balance = async (a) => (await rpc.getBalance(a, { commitment: 'confirmed' }).send()).value
+const balance = (a) => retry(async () => (await rpc.getBalance(a, { commitment: 'confirmed' }).send()).value)
 
 const funderBefore = await balance(funder.address)
 console.log(`funder ${funder.address} balance ${funderBefore} lamports`)
@@ -39,7 +51,7 @@ const dv = new DataView(data.buffer)
 dv.setUint32(0, 2, true)
 dv.setBigUint64(4, FUND_LAMPORTS, true)
 
-const { value: blockhash } = await rpc.getLatestBlockhash({ commitment: 'confirmed' }).send()
+const { value: blockhash } = await retry(() => rpc.getLatestBlockhash({ commitment: 'confirmed' }).send())
 const message = pipe(
   createTransactionMessage({ version: 0 }),
   (m) => setTransactionMessageFeePayerSigner(funder, m),
@@ -58,9 +70,11 @@ const message = pipe(
     ),
 )
 const signed = await signTransactionMessageWithSigners(message)
-await rpc
-  .sendTransaction(getBase64EncodedWireTransaction(signed), { encoding: 'base64', preflightCommitment: 'confirmed' })
-  .send()
+await retry(() =>
+  rpc
+    .sendTransaction(getBase64EncodedWireTransaction(signed), { encoding: 'base64', preflightCommitment: 'confirmed' })
+    .send(),
+)
 
 console.log(`sent ${getSignatureFromTransaction(signed)}`)
 

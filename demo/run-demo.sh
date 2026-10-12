@@ -67,6 +67,7 @@ adb shell input keyevent 3
 sleep 3
 
 # ---- wallet: authenticate once so its key is usable for 15 minutes (the PIN is the device credential)
+adb logcat -G 16M
 adb logcat -c
 run_flow wallet-open demo/wallet-open.yaml
 sleep 3
@@ -74,10 +75,15 @@ snap 00-pin-prompt
 adb shell input text "$PIN"
 sleep 1
 adb shell input keyevent 66
-sleep 0.5
-snap 00-wallet-authenticated-a
-sleep 1.5
-snap 00-wallet-authenticated-b
+# the prompt window is FLAG_SECURE, so confirm from the system log: dismissed reason 7 = credential confirmed
+AUTH=0
+for _ in $(seq 1 45); do
+  if adb logcat -d | grep -q 'AuthSession.*Dismissed!.*Reason: 7'; then AUTH=1; break; fi
+  sleep 2
+done
+note "wallet credential confirmed=$AUTH"
+[ "$AUTH" = 1 ] || FAILED=1
+snap 00-wallet-authenticated
 
 adb shell input keyevent 3
 sleep 1
