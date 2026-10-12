@@ -10,3 +10,5 @@ ios/
 *.apk
 .progress/
 keys/
+docs/WIN-CONDITIONS.md
+.claude/
