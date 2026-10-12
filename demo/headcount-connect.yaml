@@ -1,0 +1,32 @@
+appId: xyz.headcount.app
+---
+- launchApp:
+    clearState: true
+    stopApp: true
+- extendedWaitUntil:
+    visible: 'Open ballots.*'
+    timeout: 240000
+- extendedWaitUntil:
+    visible: '.*You just received SKR.*'
+    timeout: 120000
+- takeScreenshot: demo/out/01-today
+- runScript:
+    file: pause.js
+    env:
+      MS: '3000'
+- tapOn: 'Connect wallet'
+- extendedWaitUntil:
+    visible:
+      id: '.*btn_connect'
+    timeout: 90000
+- takeScreenshot: demo/out/02-wallet-authorize
+- runScript:
+    file: pause.js
+    env:
+      MS: '2500'
+- tapOn:
+    id: '.*btn_connect'
+- extendedWaitUntil:
+    visible: 'Wallet .*Disconnect'
+    timeout: 60000
+- takeScreenshot: demo/out/03-connected

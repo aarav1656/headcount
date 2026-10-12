@@ -1,0 +1,133 @@
+name: demo
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: full records the Headcount flow; wallet-smoke only proves emulator, PIN, wallet and recorder
+        type: choice
+        options: [full, wallet-smoke]
+        default: full
+
+permissions:
+  contents: read
+
+env:
+  MWA_WALLET_REPO: solana-mobile/mock-mwa-wallet
+  MWA_WALLET_SHA: d444aff0c72dadd0f5c442ea2bc3559b62916e01
+  MAESTRO_VERSION: cli-2.11.0
+  MAESTRO_SHA256: 5384593cb4e7a106489e75a821d157dd43f4e438df6bc308b72e82c685e1283a
+
+jobs:
+  build-app:
+    if: inputs.mode != 'wallet-smoke'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - id: cache
+        uses: actions/cache@v4
+        with:
+          path: headcount-x86_64.apk
+          key: headcount-x86_64-${{ hashFiles('app/**') }}
+      - if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21' }
+      - if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/setup-node@v4
+        with: { node-version: '24', cache: npm, cache-dependency-path: app/package-lock.json }
+      - if: steps.cache.outputs.cache-hit != 'true'
+        working-directory: app
+        run: |
+          npm install --no-audit --no-fund
+          npx expo prebuild -p android --no-install
+          cd android && ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=x86_64
+          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/headcount-x86_64.apk"
+      - run: ls -la headcount-x86_64.apk
+      - uses: actions/upload-artifact@v4
+        with: { name: apk-headcount, path: headcount-x86_64.apk, retention-days: 3 }
+
+  build-wallet:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - id: cache
+        uses: actions/cache@v4
+        with:
+          path: mwa-wallet.apk
+          key: mwa-wallet-${{ env.MWA_WALLET_SHA }}-v1
+      - if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.MWA_WALLET_REPO }}
+          ref: ${{ env.MWA_WALLET_SHA }}
+          path: wallet-src
+      - if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - if: steps.cache.outputs.cache-hit != 'true'
+        working-directory: wallet-src
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          ./gradlew :app:assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/mwa-wallet.apk"
+      - run: ls -la mwa-wallet.apk
+      - uses: actions/upload-artifact@v4
+        with: { name: apk-wallet, path: mwa-wallet.apk, retention-days: 3 }
+
+  record:
+    needs: [build-app, build-wallet]
+    if: ${{ !cancelled() && needs.build-wallet.result == 'success' && (inputs.mode == 'wallet-smoke' || needs.build-app.result == 'success') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { pattern: apk-*, path: apks, merge-multiple: true }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '24' }
+      - name: Install demo dependencies
+        working-directory: demo
+        run: npm ci --no-audit --no-fund
+      - name: Install Maestro
+        run: |
+          curl -fsSL "https://github.com/mobile-dev-inc/maestro/releases/download/${MAESTRO_VERSION}/maestro.zip" -o "$RUNNER_TEMP/maestro.zip"
+          echo "${MAESTRO_SHA256}  $RUNNER_TEMP/maestro.zip" | sha256sum -c -
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$HOME"
+          echo "$HOME/maestro/bin" >> "$GITHUB_PATH"
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          ls -l /dev/kvm
+          nproc
+          free -m
+      - name: Record the demo
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          SMOKE: ${{ inputs.mode == 'wallet-smoke' && '1' || '' }}
+          HEADCOUNT_APK: ${{ github.workspace }}/apks/headcount-x86_64.apk
+          WALLET_APK: ${{ github.workspace }}/apks/mwa-wallet.apk
+          CI_FUNDER_KEYPAIR: ${{ secrets.CI_FUNDER_KEYPAIR }}
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          ram-size: 3072M
+          disk-size: 6144M
+          disable-animations: false
+          emulator-boot-timeout: 600
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          script: bash demo/run-demo.sh
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: headcount-demo
+          path: demo/out
+          if-no-files-found: error
+          retention-days: 14

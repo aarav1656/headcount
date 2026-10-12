@@ -1,0 +1,9 @@
+appId: com.solana.mwallet
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: Authenticate
+    timeout: 60000
+- takeScreenshot: demo/out/00-wallet-home
+- tapOn: Authenticate

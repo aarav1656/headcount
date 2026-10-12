@@ -1,0 +1,124 @@
+appId: xyz.headcount.app
+---
+- assertVisible: '.*${SHORT}.*'
+- tapOn: '.*You just received SKR.*'
+- extendedWaitUntil:
+    visible: 'Mark one option to cast.'
+    timeout: 60000
+- takeScreenshot: demo/out/04-ballot
+- runScript:
+    file: pause.js
+    env:
+      MS: '2000'
+- tapOn: 'Stake it'
+- takeScreenshot: demo/out/05-marked
+- runScript:
+    file: pause.js
+    env:
+      MS: '1500'
+- tapOn: 'Cast answer.*'
+# wallet: sign-in message
+- extendedWaitUntil:
+    visible:
+      id: '.*btn_approve'
+    timeout: 90000
+- takeScreenshot: demo/out/06-wallet-sign-in
+- runScript:
+    file: pause.js
+    env:
+      MS: '2500'
+- tapOn:
+    id: '.*btn_approve'
+# wallet: transaction
+- extendedWaitUntil:
+    visible: '.*requesting transaction.*'
+    timeout: 120000
+- takeScreenshot: demo/out/07-wallet-transaction
+- runScript:
+    file: pause.js
+    env:
+      MS: '2500'
+- tapOn:
+    id: '.*btn_approve'
+# receipt: the reward line only exists once the Answer account is read back from chain
+- extendedWaitUntil:
+    visible: '.*5\.00 SKR.*'
+    timeout: 180000
+- takeScreenshot: demo/out/08-receipt
+- runScript:
+    file: pause.js
+    env:
+      MS: '4000'
+- scroll
+- takeScreenshot: demo/out/09-results
+- runScript:
+    file: pause.js
+    env:
+      MS: '3000'
+- scroll
+- runScript:
+    file: pause.js
+    env:
+      MS: '2000'
+- back
+- extendedWaitUntil:
+    visible: 'Open ballots.*'
+    timeout: 30000
+- takeScreenshot: demo/out/10-today-after
+- runScript:
+    file: pause.js
+    env:
+      MS: '2000'
+# seekers-only ballot, this wallet holds no Seeker token
+- tapOn: '.*Where do you install most of the apps.*'
+- extendedWaitUntil:
+    visible: 'Mark one option to cast.'
+    timeout: 60000
+- takeScreenshot: demo/out/11-seekers-ballot
+- runScript:
+    file: pause.js
+    env:
+      MS: '2000'
+- tapOn: 'Solana dApp Store'
+- tapOn: 'Cast answer.*'
+- runFlow:
+    when:
+      visible:
+        id: '.*btn_approve'
+    commands:
+      - tapOn:
+          id: '.*btn_approve'
+- extendedWaitUntil:
+    visible: '.*counts phones, not wallets.*'
+    timeout: 90000
+- takeScreenshot: demo/out/12-seekers-notice
+- runScript:
+    file: pause.js
+    env:
+      MS: '4000'
+- tapOn: 'See open polls'
+- extendedWaitUntil:
+    visible: 'Open ballots.*'
+    timeout: 30000
+- tapOn: Create
+- extendedWaitUntil:
+    visible: 'Draft a ballot'
+    timeout: 30000
+- takeScreenshot: demo/out/13-create
+- runScript:
+    file: pause.js
+    env:
+      MS: '3000'
+- tapOn: Me
+- extendedWaitUntil:
+    visible: 'Your record'
+    timeout: 30000
+# the record is read from chain: the answer just cast must be in it
+- extendedWaitUntil:
+    visible: '.*\+5\.00 SKR.*'
+    timeout: 60000
+- takeScreenshot: demo/out/14-me
+- runScript:
+    file: pause.js
+    env:
+      MS: '4000'
