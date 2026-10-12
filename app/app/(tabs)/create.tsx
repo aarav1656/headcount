@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Pressable, TextInput, View, type TextInputProps } from 'react-native'
+import { Pressable, Switch, TextInput, View, type TextInputProps } from 'react-native'
 import { useRouter } from 'expo-router'
 import * as Haptics from 'expo-haptics'
 import { Screen } from '@/components/ui/screen'
@@ -37,6 +37,7 @@ export default function Create() {
   const [reward, setReward] = useState('5')
   const [maxAnswers, setMaxAnswers] = useState('100')
   const [days, setDays] = useState(7)
+  const [seekersOnly, setSeekersOnly] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -84,6 +85,7 @@ export default function Create() {
           rewardPerAnswer: rewardUnits,
           maxAnswers: max,
           closesAt,
+          seekersOnly,
           rewardMint: ACTIVE_CLUSTER.rewardMint,
           tokenProgram: mint.data.tokenProgram,
         }),
@@ -124,11 +126,11 @@ export default function Create() {
     >
       <View style={{ gap: space.sm }}>
         <Text variant="display" style={{ fontSize: 34, lineHeight: 36 }}>
-          Ask Seeker owners.
+          Ask your audience.
         </Text>
         <Text variant="small">
-          You fund every reward up front. Each phone that answers is paid instantly, and unused rewards come back when
-          you close the poll.
+          You fund every reward up front. Each answer is paid instantly, and unused rewards come back when you close
+          the poll.
         </Text>
       </View>
 
@@ -185,6 +187,24 @@ export default function Create() {
             <Input value={maxAnswers} onChangeText={setMaxAnswers} keyboardType="number-pad" />
           </Field>
         </View>
+      </View>
+
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.lg }}>
+        <View style={{ flex: 1, gap: space.xs }}>
+          <Text variant="bodyStrong">Seeker phones only</Text>
+          <Text variant="small">
+            {seekersOnly
+              ? 'Bot-proof: only Seeker phones can answer, one vote per device.'
+              : 'Open: any wallet can answer. Results show Seeker phones beside all answers.'}
+          </Text>
+        </View>
+        <Switch
+          accessibilityLabel="Seeker phones only"
+          value={seekersOnly}
+          onValueChange={setSeekersOnly}
+          trackColor={{ false: color.rule, true: color.stamp }}
+          thumbColor={color.card}
+        />
       </View>
 
       <View style={{ gap: space.sm }}>

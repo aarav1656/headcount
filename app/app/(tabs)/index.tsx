@@ -38,10 +38,10 @@ export default function Today() {
       </View>
 
       <View style={{ gap: space.md }}>
-        <Text variant="display">One answer per Seeker phone.</Text>
+        <Text variant="display">One answer per phone.</Text>
         <Text variant="body" style={{ color: color.inkSoft }}>
-          Projects ask. Seeker owners answer and are paid in {ACTIVE_CLUSTER.rewardLabel} in the same transaction. Bots
-          and wallet farms cannot vote twice, because the count is per phone, not per wallet.
+          Projects ask. Anyone with a wallet answers open polls and is paid in {ACTIVE_CLUSTER.rewardLabel} in the same
+          transaction. Seekers-only polls count phones, not wallets, so bots and wallet farms cannot vote twice.
         </Text>
       </View>
 
@@ -70,7 +70,7 @@ export default function Today() {
         ) : open.length === 0 ? (
           <Empty
             title="No open polls right now"
-            body="Every poll is closed or fully answered. Fund the next one and Seeker owners will see it here."
+            body="Every poll is closed or fully answered. Fund the next one and answerers will see it here."
             marks={5}
             actionLabel="Create a poll"
             onAction={() => router.navigate('/create')}

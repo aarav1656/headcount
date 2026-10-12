@@ -1,5 +1,5 @@
 use anchor_lang::{InstructionData, ToAccountMetas};
-use headcount::{accounts, instruction, HeadcountError, ATTEST_PREFIX};
+use headcount::{accounts, instruction, HeadcountError, ATTEST_PREFIX, TIER_SEEKER, TIER_WALLET};
 use litesvm::{types::FailedTransactionMetadata, LiteSVM};
 use solana_sdk::{
     clock::Clock,
@@ -148,6 +148,16 @@ fn vault_pda(poll: &Pubkey) -> Pubkey {
 }
 
 fn create_poll(e: &mut Env, id: u64, max_answers: u32, closes_at: i64) -> Result<Pubkey, FailedTransactionMetadata> {
+    create_poll_with(e, id, max_answers, closes_at, false)
+}
+
+fn create_poll_with(
+    e: &mut Env,
+    id: u64,
+    max_answers: u32,
+    closes_at: i64,
+    seekers_only: bool,
+) -> Result<Pubkey, FailedTransactionMetadata> {
     let poll = poll_pda(&e.creator.pubkey(), id);
     let ix = Instruction {
         program_id: headcount::ID,
@@ -168,6 +178,7 @@ fn create_poll(e: &mut Env, id: u64, max_answers: u32, closes_at: i64) -> Result
             reward_per_answer: REWARD,
             max_answers,
             closes_at,
+            seekers_only,
         }
         .data(),
     };
@@ -175,10 +186,11 @@ fn create_poll(e: &mut Env, id: u64, max_answers: u32, closes_at: i64) -> Result
     send(&mut e.svm, &creator, &[], &[ix]).map(|_| poll)
 }
 
-fn attest_msg(answerer: &Pubkey, sgt: &Pubkey, expires_at: i64) -> Vec<u8> {
+fn attest_msg(answerer: &Pubkey, identity: &Pubkey, tier: u8, expires_at: i64) -> Vec<u8> {
     let mut m = ATTEST_PREFIX.to_vec();
     m.extend_from_slice(answerer.as_ref());
-    m.extend_from_slice(sgt.as_ref());
+    m.extend_from_slice(identity.as_ref());
+    m.push(tier);
     m.extend_from_slice(&expires_at.to_le_bytes());
     m
 }
@@ -189,14 +201,22 @@ fn ed_ix(signer: &Keypair, msg: &[u8]) -> Instruction {
     new_ed25519_instruction_with_signature(msg, &sig_bytes, &signer.pubkey().to_bytes())
 }
 
-fn answer_ix(e: &Env, poll: &Pubkey, answerer: &Pubkey, choice: u8, sgt: Pubkey, expires_at: i64) -> Instruction {
+fn answer_ix(
+    e: &Env,
+    poll: &Pubkey,
+    answerer: &Pubkey,
+    choice: u8,
+    identity: Pubkey,
+    tier: u8,
+    expires_at: i64,
+) -> Instruction {
     Instruction {
         program_id: headcount::ID,
         accounts: accounts::AnswerPoll {
             answerer: *answerer,
             config: e.config,
             poll: *poll,
-            answer: Pubkey::find_program_address(&[b"answer", poll.as_ref(), sgt.as_ref()], &headcount::ID).0,
+            answer: Pubkey::find_program_address(&[b"answer", poll.as_ref(), identity.as_ref()], &headcount::ID).0,
             reward_mint: e.mint,
             vault: vault_pda(poll),
             answerer_token: get_associated_token_address(answerer, &e.mint),
@@ -206,7 +226,7 @@ fn answer_ix(e: &Env, poll: &Pubkey, answerer: &Pubkey, choice: u8, sgt: Pubkey,
             system_program: system_program::ID,
         }
         .to_account_metas(None),
-        data: instruction::Answer { choice, sgt_mint: sgt, expires_at }.data(),
+        data: instruction::Answer { choice, identity, tier, expires_at }.data(),
     }
 }
 
@@ -216,25 +236,43 @@ fn fund(e: &mut Env) -> Keypair {
     k
 }
 
-/// Valid attested answer: signer `attestor_key` signs the message for `msg_answerer`.
+/// Attested answer: signer `attestor_key` signs the message for `msg_answerer`.
 fn answer_with(
     e: &mut Env,
     poll: &Pubkey,
     wallet: &Keypair,
-    sgt: Pubkey,
+    identity: Pubkey,
+    tier: u8,
     choice: u8,
     attestor_key: &Keypair,
     msg_answerer: &Pubkey,
     expires_at: i64,
 ) -> Result<(), FailedTransactionMetadata> {
-    let ed = ed_ix(attestor_key, &attest_msg(msg_answerer, &sgt, expires_at));
-    let ix = answer_ix(e, poll, &wallet.pubkey(), choice, sgt, expires_at);
+    let ed = ed_ix(attestor_key, &attest_msg(msg_answerer, &identity, tier, expires_at));
+    let ix = answer_ix(e, poll, &wallet.pubkey(), choice, identity, tier, expires_at);
     send(&mut e.svm, wallet, &[], &[ed, ix])
 }
 
+/// Seeker-tier answer: identity is the SGT mint.
 fn answer_ok(e: &mut Env, poll: &Pubkey, wallet: &Keypair, sgt: Pubkey, choice: u8) -> Result<(), FailedTransactionMetadata> {
     let att = e.attestor.insecure_clone();
-    answer_with(e, poll, wallet, sgt, choice, &att, &wallet.pubkey(), NOW + 600)
+    answer_with(e, poll, wallet, sgt, TIER_SEEKER, choice, &att, &wallet.pubkey(), NOW + 600)
+}
+
+/// Wallet-tier answer: identity is the answering wallet itself.
+fn wallet_ok(e: &mut Env, poll: &Pubkey, wallet: &Keypair, choice: u8) -> Result<(), FailedTransactionMetadata> {
+    let att = e.attestor.insecure_clone();
+    answer_with(e, poll, wallet, wallet.pubkey(), TIER_WALLET, choice, &att, &wallet.pubkey(), NOW + 600)
+}
+
+fn answer_state(e: &Env, poll: &Pubkey, identity: &Pubkey) -> Option<headcount::Answer> {
+    use anchor_lang::AccountDeserialize;
+    let addr = Pubkey::find_program_address(&[b"answer", poll.as_ref(), identity.as_ref()], &headcount::ID).0;
+    let a = e.svm.get_account(&addr)?;
+    if a.data.is_empty() {
+        return None;
+    }
+    headcount::Answer::try_deserialize(&mut a.data.as_slice()).ok()
 }
 
 fn poll_state(e: &Env, poll: &Pubkey) -> headcount::Poll {
@@ -258,6 +296,11 @@ fn happy_path_create_answer_tally_and_payout() {
     let p = poll_state(&e, &poll);
     assert_eq!(p.answers, 1);
     assert_eq!(p.tallies, [0, 1, 0, 0, 0, 0]);
+    assert_eq!(p.seeker_tallies, [0, 1, 0, 0, 0, 0]);
+    assert_eq!(p.seeker_answers, 1);
+    assert!(!p.seekers_only);
+    let a = answer_state(&e, &poll, &sgt).expect("answer account");
+    assert_eq!((a.tier, a.identity, a.answerer, a.choice), (TIER_SEEKER, sgt, w.pubkey(), 1));
     assert_eq!(token_balance(&e.svm, &get_associated_token_address(&w.pubkey(), &e.mint)), Some(REWARD));
     assert_eq!(token_balance(&e.svm, &vault_pda(&poll)), Some(REWARD * 2));
 }
@@ -286,7 +329,7 @@ fn attestation_by_non_attestor_fails() {
     let poll = create_poll(&mut e, 1, 5, NOW + 3600).unwrap();
     let w = fund(&mut e);
     let rogue = Keypair::new();
-    let r = answer_with(&mut e, &poll, &w, Pubkey::new_unique(), 0, &rogue, &w.pubkey(), NOW + 600).unwrap_err();
+    let r = answer_with(&mut e, &poll, &w, Pubkey::new_unique(), TIER_SEEKER, 0, &rogue, &w.pubkey(), NOW + 600).unwrap_err();
     assert_eq!(custom(&r), Some(code(HeadcountError::WrongAttestor)), "{:?}", r.err);
     assert_eq!(poll_state(&e, &poll).answers, 0);
 }
@@ -298,7 +341,7 @@ fn attestation_for_different_answerer_fails() {
     let w = fund(&mut e);
     let other = Pubkey::new_unique();
     let att = e.attestor.insecure_clone();
-    let r = answer_with(&mut e, &poll, &w, Pubkey::new_unique(), 0, &att, &other, NOW + 600).unwrap_err();
+    let r = answer_with(&mut e, &poll, &w, Pubkey::new_unique(), TIER_SEEKER, 0, &att, &other, NOW + 600).unwrap_err();
     assert_eq!(custom(&r), Some(code(HeadcountError::WrongMessage)), "{:?}", r.err);
 }
 
@@ -309,8 +352,8 @@ fn attestation_for_different_sgt_fails() {
     let w = fund(&mut e);
     let att = e.attestor.insecure_clone();
     let signed_sgt = Pubkey::new_unique();
-    let ed = ed_ix(&att, &attest_msg(&w.pubkey(), &signed_sgt, NOW + 600));
-    let ix = answer_ix(&e, &poll, &w.pubkey(), 0, Pubkey::new_unique(), NOW + 600);
+    let ed = ed_ix(&att, &attest_msg(&w.pubkey(), &signed_sgt, TIER_SEEKER, NOW + 600));
+    let ix = answer_ix(&e, &poll, &w.pubkey(), 0, Pubkey::new_unique(), TIER_SEEKER, NOW + 600);
     let r = send(&mut e.svm, &w, &[], &[ed, ix]).unwrap_err();
     assert_eq!(custom(&r), Some(code(HeadcountError::WrongMessage)), "{:?}", r.err);
 }
@@ -321,12 +364,12 @@ fn expired_attestation_fails() {
     let poll = create_poll(&mut e, 1, 5, NOW + 3600).unwrap();
     let w = fund(&mut e);
     let att = e.attestor.insecure_clone();
-    let r = answer_with(&mut e, &poll, &w, Pubkey::new_unique(), 0, &att, &w.pubkey(), NOW - 1).unwrap_err();
+    let r = answer_with(&mut e, &poll, &w, Pubkey::new_unique(), TIER_SEEKER, 0, &att, &w.pubkey(), NOW - 1).unwrap_err();
     assert_eq!(custom(&r), Some(code(HeadcountError::AttestationExpired)), "{:?}", r.err);
     // and one that expires while the poll is open: clock passes expires_at
     let sgt = Pubkey::new_unique();
-    let ed = ed_ix(&att, &attest_msg(&w.pubkey(), &sgt, NOW + 100));
-    let ix = answer_ix(&e, &poll, &w.pubkey(), 0, sgt, NOW + 100);
+    let ed = ed_ix(&att, &attest_msg(&w.pubkey(), &sgt, TIER_SEEKER, NOW + 100));
+    let ix = answer_ix(&e, &poll, &w.pubkey(), 0, sgt, TIER_SEEKER, NOW + 100);
     set_clock(&mut e.svm, NOW + 100);
     let r = send(&mut e.svm, &w, &[], &[ed, ix]).unwrap_err();
     assert_eq!(custom(&r), Some(code(HeadcountError::AttestationExpired)), "{:?}", r.err);
@@ -337,16 +380,16 @@ fn missing_ed25519_instruction_fails() {
     let mut e = setup();
     let poll = create_poll(&mut e, 1, 5, NOW + 3600).unwrap();
     let w = fund(&mut e);
-    let ix = answer_ix(&e, &poll, &w.pubkey(), 0, Pubkey::new_unique(), NOW + 600);
+    let ix = answer_ix(&e, &poll, &w.pubkey(), 0, Pubkey::new_unique(), TIER_SEEKER, NOW + 600);
     let r = send(&mut e.svm, &w, &[], &[ix]).unwrap_err();
     assert_eq!(custom(&r), Some(code(HeadcountError::MissingEd25519)), "{:?}", r.err);
 
     // ed25519 ix present but not immediately before: a no-op sits between
     let att = e.attestor.insecure_clone();
     let sgt = Pubkey::new_unique();
-    let ed = ed_ix(&att, &attest_msg(&w.pubkey(), &sgt, NOW + 600));
+    let ed = ed_ix(&att, &attest_msg(&w.pubkey(), &sgt, TIER_SEEKER, NOW + 600));
     let pad = solana_sdk::system_instruction::transfer(&w.pubkey(), &w.pubkey(), 1);
-    let ix = answer_ix(&e, &poll, &w.pubkey(), 0, sgt, NOW + 600);
+    let ix = answer_ix(&e, &poll, &w.pubkey(), 0, sgt, TIER_SEEKER, NOW + 600);
     let r = send(&mut e.svm, &w, &[], &[ed, pad, ix]).unwrap_err();
     assert_eq!(custom(&r), Some(code(HeadcountError::MissingEd25519)), "{:?}", r.err);
 }
@@ -359,12 +402,12 @@ fn ed25519_offsets_pointing_at_other_instruction_fail() {
     let sgt = Pubkey::new_unique();
     let att = e.attestor.insecure_clone();
     // Offsets claim instruction 0 instead of u16::MAX. The runtime accepts it; we must not.
-    let mut ed = ed_ix(&att, &attest_msg(&w.pubkey(), &sgt, NOW + 600));
+    let mut ed = ed_ix(&att, &attest_msg(&w.pubkey(), &sgt, TIER_SEEKER, NOW + 600));
     for off in [4usize, 8, 14] {
         ed.data[off..off + 2].copy_from_slice(&0u16.to_le_bytes());
     }
     // ed25519 ix at index 0 now self-references index 0
-    let ix = answer_ix(&e, &poll, &w.pubkey(), 0, sgt, NOW + 600);
+    let ix = answer_ix(&e, &poll, &w.pubkey(), 0, sgt, TIER_SEEKER, NOW + 600);
     let r = send(&mut e.svm, &w, &[], &[ed, ix]).unwrap_err();
     assert_eq!(custom(&r), Some(code(HeadcountError::BadEd25519)), "{:?}", r.err);
 }
@@ -453,5 +496,117 @@ fn create_poll_validation_and_set_attestor_admin_only() {
     let w = fund(&mut e);
     let r = answer_ok(&mut e, &poll, &w, Pubkey::new_unique(), 0).unwrap_err();
     assert_eq!(custom(&r), Some(code(HeadcountError::WrongAttestor)), "{:?}", r.err);
-    answer_with(&mut e, &poll, &w, Pubkey::new_unique(), 0, &new_att, &w.pubkey(), NOW + 600).unwrap();
+    answer_with(&mut e, &poll, &w, Pubkey::new_unique(), TIER_SEEKER, 0, &new_att, &w.pubkey(), NOW + 600).unwrap();
+}
+
+#[test]
+fn wallet_tier_answering_open_poll_is_paid() {
+    let mut e = setup();
+    let poll = create_poll(&mut e, 1, 3, NOW + 3600).unwrap();
+    let w = fund(&mut e);
+    let ata = get_associated_token_address(&w.pubkey(), &e.mint);
+    assert_eq!(token_balance(&e.svm, &ata), None);
+    wallet_ok(&mut e, &poll, &w, 2).unwrap();
+    assert_eq!(token_balance(&e.svm, &ata), Some(REWARD));
+    assert_eq!(token_balance(&e.svm, &vault_pda(&poll)), Some(REWARD * 2));
+    let a = answer_state(&e, &poll, &w.pubkey()).expect("answer account seeded by the wallet");
+    assert_eq!((a.tier, a.identity, a.answerer, a.choice), (TIER_WALLET, w.pubkey(), w.pubkey(), 2));
+}
+
+#[test]
+fn wallet_tier_on_seekers_only_poll_fails_and_seeker_tier_succeeds() {
+    let mut e = setup();
+    let poll = create_poll_with(&mut e, 1, 3, NOW + 3600, true).unwrap();
+    assert!(poll_state(&e, &poll).seekers_only);
+
+    let w = fund(&mut e);
+    let ata = get_associated_token_address(&w.pubkey(), &e.mint);
+    let r = wallet_ok(&mut e, &poll, &w, 0).unwrap_err();
+    assert_eq!(custom(&r), Some(code(HeadcountError::SeekersOnly)), "{:?}", r.err);
+    let p = poll_state(&e, &poll);
+    assert_eq!((p.answers, p.seeker_answers, p.tallies, p.seeker_tallies), (0, 0, [0; 6], [0; 6]));
+    assert_eq!(token_balance(&e.svm, &ata), None);
+    assert!(answer_state(&e, &poll, &w.pubkey()).is_none());
+    assert_eq!(token_balance(&e.svm, &vault_pda(&poll)), Some(REWARD * 3));
+
+    // the same wallet, attested as a seeker, is accepted on the same poll
+    let sgt = Pubkey::new_unique();
+    answer_ok(&mut e, &poll, &w, sgt, 1).unwrap();
+    let p = poll_state(&e, &poll);
+    assert_eq!((p.answers, p.seeker_answers, p.tallies[1], p.seeker_tallies[1]), (1, 1, 1, 1));
+    assert_eq!(token_balance(&e.svm, &ata), Some(REWARD));
+}
+
+#[test]
+fn seeker_answer_counts_in_both_tallies_and_wallet_answer_only_in_overall() {
+    let mut e = setup();
+    let poll = create_poll(&mut e, 1, 10, NOW + 3600).unwrap();
+
+    let s = fund(&mut e);
+    answer_ok(&mut e, &poll, &s, Pubkey::new_unique(), 0).unwrap();
+    let p = poll_state(&e, &poll);
+    assert_eq!((p.answers, p.seeker_answers), (1, 1));
+    assert_eq!((p.tallies, p.seeker_tallies), ([1, 0, 0, 0, 0, 0], [1, 0, 0, 0, 0, 0]));
+
+    for choice in [1u8, 1, 2] {
+        let w = fund(&mut e);
+        wallet_ok(&mut e, &poll, &w, choice).unwrap();
+    }
+    let p = poll_state(&e, &poll);
+    assert_eq!((p.answers, p.seeker_answers), (4, 1));
+    assert_eq!(p.tallies, [1, 2, 1, 0, 0, 0]);
+    assert_eq!(p.seeker_tallies, [1, 0, 0, 0, 0, 0]);
+
+    let s2 = fund(&mut e);
+    answer_ok(&mut e, &poll, &s2, Pubkey::new_unique(), 2).unwrap();
+    let p = poll_state(&e, &poll);
+    assert_eq!((p.answers, p.seeker_answers), (5, 2));
+    assert_eq!(p.tallies, [1, 2, 2, 0, 0, 0]);
+    assert_eq!(p.seeker_tallies, [1, 0, 1, 0, 0, 0]);
+}
+
+#[test]
+fn same_identity_twice_fails_for_both_tiers() {
+    let mut e = setup();
+    let poll = create_poll(&mut e, 1, 10, NOW + 3600).unwrap();
+
+    let w = fund(&mut e);
+    wallet_ok(&mut e, &poll, &w, 0).unwrap();
+    let r = wallet_ok(&mut e, &poll, &w, 1).unwrap_err();
+    assert!(r.meta.logs.iter().any(|l| l.contains("already in use")), "{:?}", r.meta.logs);
+
+    let sgt = Pubkey::new_unique();
+    let s1 = fund(&mut e);
+    answer_ok(&mut e, &poll, &s1, sgt, 0).unwrap();
+    let s2 = fund(&mut e);
+    let r = answer_ok(&mut e, &poll, &s2, sgt, 1).unwrap_err();
+    assert!(r.meta.logs.iter().any(|l| l.contains("already in use")), "{:?}", r.meta.logs);
+
+    let p = poll_state(&e, &poll);
+    assert_eq!((p.answers, p.seeker_answers, p.tallies), (2, 1, [2, 0, 0, 0, 0, 0]));
+}
+
+#[test]
+fn attested_tier_cannot_be_upgraded_and_tier_rules_hold() {
+    let mut e = setup();
+    let seekers = create_poll_with(&mut e, 1, 5, NOW + 3600, true).unwrap();
+    let att = e.attestor.insecure_clone();
+    let w = fund(&mut e);
+
+    // attestor signed tier 0, the wallet claims tier 1 to get into a seekers-only poll
+    let ed = ed_ix(&att, &attest_msg(&w.pubkey(), &w.pubkey(), TIER_WALLET, NOW + 600));
+    let ix = answer_ix(&e, &seekers, &w.pubkey(), 0, w.pubkey(), TIER_SEEKER, NOW + 600);
+    let r = send(&mut e.svm, &w, &[], &[ed, ix]).unwrap_err();
+    assert_eq!(custom(&r), Some(code(HeadcountError::WrongMessage)), "{:?}", r.err);
+
+    // tier outside {0,1}
+    let r = answer_with(&mut e, &seekers, &w, w.pubkey(), 2, 0, &att, &w.pubkey(), NOW + 600).unwrap_err();
+    assert_eq!(custom(&r), Some(code(HeadcountError::InvalidTier)), "{:?}", r.err);
+
+    // wallet tier must use the answering wallet as identity, even if the attestor signed another
+    let open = create_poll(&mut e, 2, 5, NOW + 3600).unwrap();
+    let r = answer_with(&mut e, &open, &w, Pubkey::new_unique(), TIER_WALLET, 0, &att, &w.pubkey(), NOW + 600).unwrap_err();
+    assert_eq!(custom(&r), Some(code(HeadcountError::InvalidIdentity)), "{:?}", r.err);
+    assert_eq!(poll_state(&e, &open).answers, 0);
+    assert_eq!(poll_state(&e, &seekers).answers, 0);
 }

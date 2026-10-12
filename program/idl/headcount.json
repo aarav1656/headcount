@@ -1,10 +1,10 @@
 {
-  "address": "2bgD83ZSF8vehRfEadp5iPW1YGhnMpQDQPD5jZLzCccW",
+  "address": "12kijt3UyT3TGnGbQn9Z4M9qe9uuHyc7ypWhLE57dkF3",
   "metadata": {
     "name": "headcount",
     "version": "0.1.0",
     "spec": "0.1.0",
-    "description": "One Seeker Genesis Token, one answer"
+    "description": "One identity, one answer. Seeker phones are bot-proof."
   },
   "instructions": [
     {
@@ -92,7 +92,7 @@
               },
               {
                 "kind": "arg",
-                "path": "sgt_mint"
+                "path": "identity"
               }
             ]
           }
@@ -204,8 +204,12 @@
           "type": "u8"
         },
         {
-          "name": "sgt_mint",
+          "name": "identity",
           "type": "pubkey"
+        },
+        {
+          "name": "tier",
+          "type": "u8"
         },
         {
           "name": "expires_at",
@@ -404,6 +408,10 @@
         {
           "name": "closes_at",
           "type": "i64"
+        },
+        {
+          "name": "seekers_only",
+          "type": "bool"
         }
       ]
     },
@@ -624,7 +632,7 @@
     {
       "code": 6015,
       "name": "WrongMessage",
-      "msg": "Attestation message does not match answerer, SGT and expiry"
+      "msg": "Attestation message does not match answerer, identity, tier and expiry"
     },
     {
       "code": 6016,
@@ -640,6 +648,21 @@
       "code": 6018,
       "name": "CannotCloseYet",
       "msg": "Poll cannot be closed yet"
+    },
+    {
+      "code": 6019,
+      "name": "SeekersOnly",
+      "msg": "This poll only accepts Seeker phones"
+    },
+    {
+      "code": 6020,
+      "name": "InvalidTier",
+      "msg": "Tier must be 0 (wallet) or 1 (seeker)"
+    },
+    {
+      "code": 6021,
+      "name": "InvalidIdentity",
+      "msg": "A wallet-tier identity must be the answering wallet"
     }
   ],
   "types": [
@@ -657,8 +680,12 @@
             "type": "pubkey"
           },
           {
-            "name": "sgt_mint",
+            "name": "identity",
             "type": "pubkey"
+          },
+          {
+            "name": "tier",
+            "type": "u8"
           },
           {
             "name": "choice",
@@ -758,6 +785,23 @@
           {
             "name": "vault_bump",
             "type": "u8"
+          },
+          {
+            "name": "seekers_only",
+            "type": "bool"
+          },
+          {
+            "name": "seeker_tallies",
+            "type": {
+              "array": [
+                "u32",
+                6
+              ]
+            }
+          },
+          {
+            "name": "seeker_answers",
+            "type": "u32"
           }
         ]
       }

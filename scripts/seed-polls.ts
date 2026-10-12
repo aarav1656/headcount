@@ -18,18 +18,21 @@ const REWARD_TOKENS = 5n
 const MAX_ANSWERS = 200
 const DAYS = 7
 
-const POLLS: { question: string; options: string[] }[] = [
+const POLLS: { question: string; options: string[]; seekersOnly: boolean }[] = [
   {
     question: 'Where do you install most of the apps on your Seeker?',
     options: ['Solana dApp Store', 'Google Play', 'Sideloaded APKs', 'I mostly use the mobile web'],
+    seekersOnly: true,
   },
   {
     question: 'You just received SKR. What do you do with it first?',
     options: ['Stake it', 'Hold it', 'Spend it in apps', 'Trade it for another token'],
+    seekersOnly: false,
   },
   {
     question: 'Which app do you open on your Seeker every single day?',
     options: ['A wallet', 'X or Telegram', 'A trading app', 'A game', 'A browser', 'Something else'],
+    seekersOnly: false,
   },
 ]
 
@@ -81,6 +84,7 @@ for (const [i, p] of POLLS.entries()) {
       rewardPerAnswer: reward,
       maxAnswers: MAX_ANSWERS,
       closesAt,
+      seekersOnly: p.seekersOnly,
       rewardMint: mint,
       tokenProgram,
     }),
@@ -111,6 +115,9 @@ for (const addr of created) {
         question: p.question,
         options: p.options,
         tallies: p.tallies,
+        seekersOnly: p.seekersOnly,
+        seekerTallies: p.seekerTallies,
+        seekerAnswers: p.seekerAnswers,
         closed: p.closed,
         vaultBalance: vault.value.uiAmountString,
       },
@@ -118,6 +125,8 @@ for (const addr of created) {
       2,
     ),
   )
+  const want = POLLS.find((x) => x.question === p.question)
+  if (!want || p.seekersOnly !== want.seekersOnly) throw new Error(`poll ${addr} has the wrong seekersOnly flag`)
   if (p.rewardPerAnswer !== reward || p.maxAnswers !== MAX_ANSWERS || p.closed)
     throw new Error(`poll ${addr} has unexpected parameters`)
   if (BigInt(vault.value.amount) !== reward * BigInt(MAX_ANSWERS))
@@ -125,4 +134,5 @@ for (const addr of created) {
   proven++
 }
 if (proven !== POLLS.length) throw new Error('not every seeded poll was proven')
-console.log(`\nOK: ${proven} polls exist, funded ${REWARD_TOKENS * BigInt(MAX_ANSWERS)} tokens each`)
+const open = POLLS.filter((x) => !x.seekersOnly).length
+console.log(`\nOK: ${proven} polls exist (${open} open, ${proven - open} seekers-only), funded ${REWARD_TOKENS * BigInt(MAX_ANSWERS)} tokens each`)

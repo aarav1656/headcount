@@ -6,6 +6,7 @@ import {
   loadAttestorKey,
   signAttestation,
   verifyWalletSignature,
+  type Tier,
 } from "../lib/attest";
 import { DEFAULT_RPC, lookupSgt } from "../lib/sgt";
 
@@ -43,13 +44,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.error("sgt lookup", (e as Error).message);
     return res.status(502).json({ error: "rpc_unavailable" });
   }
-  if (!lookup.found) return res.status(403).json({ error: "no_seeker_genesis_token" });
 
+  const tier: Tier = lookup.found ? 1 : 0;
+  const identity = lookup.found ? lookup.sgtMint : wallet;
   const expiresAt = BigInt(now + ATTESTATION_TTL_SECONDS);
   return res.status(200).json({
-    sgtMint: lookup.sgtMint,
+    identity,
+    tier,
     expiresAt: Number(expiresAt),
     attestorPubkey: await getAddressFromPublicKey(attestor.publicKey),
-    signature: await signAttestation(attestor, wallet, lookup.sgtMint, expiresAt),
+    signature: await signAttestation(attestor, wallet, identity, tier, expiresAt),
   });
 }

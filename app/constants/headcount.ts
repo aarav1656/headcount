@@ -34,8 +34,10 @@ export const CLUSTERS: Record<ClusterKey, ClusterConfig> = {
 export const ACTIVE_CLUSTER: ClusterConfig =
   process.env.EXPO_PUBLIC_CLUSTER === 'mainnet' ? CLUSTERS.mainnet : CLUSTERS.devnet
 
-export const PROGRAM_ID = address('2bgD83ZSF8vehRfEadp5iPW1YGhnMpQDQPD5jZLzCccW')
-export const ATTESTOR_PUBKEY = address('9zSRzo8Fm1NQ8xAk2EV4Jeqtk5eaUBwvy4YbJmpQBfAX')
+export const PROGRAM_ID = address('12kijt3UyT3TGnGbQn9Z4M9qe9uuHyc7ypWhLE57dkF3')
+export const ATTESTOR_PUBKEY = address(
+  process.env.EXPO_PUBLIC_ATTESTOR_PUBKEY ?? '9zSRzo8Fm1NQ8xAk2EV4Jeqtk5eaUBwvy4YbJmpQBfAX',
+)
 
 export const ATTEST_URL = process.env.EXPO_PUBLIC_ATTEST_URL ?? 'https://headcount-attest.fly.dev/api/attest'
 

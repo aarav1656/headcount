@@ -1,28 +1,24 @@
 import { ed25519 } from '@noble/curves/ed25519.js'
 import { address, getAddressEncoder, getBase58Decoder, getBase58Encoder, isAddress, type Address } from '@solana/kit'
 import { ATTEST_URL, ATTESTOR_PUBKEY } from '@/constants/headcount'
-import { attestationMessage } from './program'
+import { attestationMessage, TIER_SEEKER, TIER_WALLET, type Tier } from './program'
 
 const b58 = getBase58Decoder()
 const b58Bytes = getBase58Encoder()
 const addrBytes = getAddressEncoder()
 
+/** tier 1: identity is the Seeker Genesis Token mint. tier 0: identity is the wallet itself. */
 export type Attestation = {
-  sgtMint: Address
+  identity: Address
+  tier: Tier
   expiresAt: bigint
   signature: Uint8Array
-}
-
-export class NoSeekerTokenError extends Error {
-  constructor() {
-    super('no_seeker_genesis_token')
-  }
 }
 
 const API_MESSAGES: Record<string, string> = {
   bad_signature: 'Your wallet signature could not be verified. Try again.',
   message_expired: 'Your device clock is off by more than five minutes. Fix the time and try again.',
-  rpc_unavailable: 'Headcount could not check your Seeker token right now. Try again in a minute.',
+  rpc_unavailable: 'Headcount could not check your wallet right now. Try again in a minute.',
   attestor_not_configured: 'The Headcount attestor is not available right now.',
   malformed_message: 'The sign-in message was rejected. Update the app and try again.',
   wallet_mismatch: 'The sign-in message was rejected. Update the app and try again.',
@@ -54,32 +50,33 @@ export async function requestAttestation(
   } catch {
     body = {}
   }
-  if (res.status === 403 && body.error === 'no_seeker_genesis_token') throw new NoSeekerTokenError()
   if (!res.ok) {
     const code = typeof body.error === 'string' ? body.error : `http_${res.status}`
     throw new Error(API_MESSAGES[code] ?? `The attestor returned an error (${code}).`)
   }
 
-  const { sgtMint, expiresAt, attestorPubkey, signature } = body
+  const { identity, tier, expiresAt, attestorPubkey, signature } = body
   if (
-    typeof sgtMint !== 'string' ||
-    !isAddress(sgtMint) ||
+    typeof identity !== 'string' ||
+    !isAddress(identity) ||
+    (tier !== TIER_WALLET && tier !== TIER_SEEKER) ||
     typeof signature !== 'string' ||
     typeof expiresAt !== 'number'
   ) {
     throw new Error('The attestor returned an unexpected response.')
   }
+  if (tier === TIER_WALLET && identity !== wallet) throw new Error('The attestor returned an unexpected identity.')
   if (attestorPubkey !== ATTESTOR_PUBKEY) throw new Error('The attestor key does not match the one this app trusts.')
   const sig = Uint8Array.from(b58Bytes.encode(signature))
   const exp = BigInt(expiresAt)
   if (sig.length !== 64) throw new Error('The attestor returned a malformed signature.')
   const ok = ed25519.verify(
     sig,
-    attestationMessage(wallet, address(sgtMint), exp),
+    attestationMessage(wallet, address(identity), tier, exp),
     Uint8Array.from(addrBytes.encode(ATTESTOR_PUBKEY)),
   )
   if (!ok) throw new Error('The attestor signature did not verify.')
-  return { sgtMint: address(sgtMint), expiresAt: exp, signature: sig }
+  return { identity: address(identity), tier, expiresAt: exp, signature: sig }
 }
 
 /**

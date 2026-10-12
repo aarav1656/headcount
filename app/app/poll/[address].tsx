@@ -11,7 +11,6 @@ import { Results } from '@/components/results'
 import { ACTIVE_CLUSTER, ATTESTOR_PUBKEY, explorerTx } from '@/constants/headcount'
 import { color, font, radius, space } from '@/constants/theme'
 import { formatTokens, timeLeft } from '@/lib/format'
-import { NoSeekerTokenError } from '@/lib/headcount/attest'
 import { fetchAnswerForPoll } from '@/lib/headcount/client'
 import { ALREADY_ANSWERED_MESSAGE, HeadcountUserError, describeError } from '@/lib/headcount/errors'
 import {
@@ -19,6 +18,7 @@ import {
   attestationMessage,
   closePollInstruction,
   ed25519Instruction,
+  TIER_SEEKER,
 } from '@/lib/headcount/program'
 import { forgetSession, getAttestation } from '@/lib/headcount/session'
 import { useMint, useMyAnswerForPoll, usePoll, useRefreshHeadcount } from '@/features/headcount/queries'
@@ -29,7 +29,7 @@ type Step = 'idle' | 'connect' | 'sign' | 'check' | 'wallet'
 const STEP_TEXT: Record<Exclude<Step, 'idle'>, string> = {
   connect: 'Connecting your wallet',
   sign: 'Sign in with your wallet. This happens once per session.',
-  check: 'Checking your Seeker Genesis Token',
+  check: 'Checking your wallet',
   wallet: 'Approve the transaction in your wallet. We confirm it on chain after.',
 }
 
@@ -54,7 +54,7 @@ export default function PollScreen() {
   const [step, setStep] = useState<Step>('idle')
   const [error, setError] = useState<string | null>(null)
   const [justAnswered, setJustAnswered] = useState<{ choice: number; signature: string } | null>(null)
-  const [phoneAnswered, setPhoneAnswered] = useState(false)
+  const [alreadyAnswered, setAlreadyAnswered] = useState(false)
 
   const p = poll.data
   const decimals = mint.data?.decimals ?? 6
@@ -87,7 +87,7 @@ export default function PollScreen() {
   const full = p.answers >= p.maxAnswers
   const isCreator = !!account && account.address === p.creator
   const yourChoice = justAnswered?.choice ?? mine.data?.choice
-  const hasAnswered = yourChoice !== undefined || phoneAnswered
+  const hasAnswered = yourChoice !== undefined || alreadyAnswered
   const reveal = hasAnswered || isCreator
   const reward = `${formatTokens(p.rewardPerAnswer, decimals)} ${ACTIVE_CLUSTER.rewardLabel}`
   const canClose = isCreator && !p.closed && (Number(p.closesAt) <= now || full)
@@ -101,10 +101,14 @@ export default function PollScreen() {
       const acct = await ensureAccount()
       wallet = acct.address
       const att = await getAttestation(wallet, signMessage, (s) => setStep(s === 'signing' ? 'sign' : 'check'))
+      if (p.seekersOnly && att.tier !== TIER_SEEKER) {
+        router.push({ pathname: '/no-sgt', params: { wallet } })
+        return
+      }
       setStep('wallet')
       const info = mint.data
       if (!info) throw new Error('The reward mint could not be read. Pull to refresh and try again.')
-      const message = attestationMessage(wallet, att.sgtMint, att.expiresAt)
+      const message = attestationMessage(wallet, att.identity, att.tier, att.expiresAt)
       const signature = await sendAndConfirm(
         wallet,
         [
@@ -113,7 +117,8 @@ export default function PollScreen() {
             answerer: wallet,
             poll: p,
             choice,
-            sgtMint: att.sgtMint,
+            identity: att.identity,
+            tier: att.tier,
             expiresAt: att.expiresAt,
             tokenProgram: info.tokenProgram,
           }),
@@ -128,15 +133,11 @@ export default function PollScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
       await refresh()
     } catch (e) {
-      if (e instanceof NoSeekerTokenError) {
-        router.push({ pathname: '/no-sgt', params: { wallet: wallet ?? '' } })
-      } else {
-        if (e instanceof HeadcountUserError && wallet) forgetSession(wallet)
-        const d = describeError(e)
-        if (d.message === ALREADY_ANSWERED_MESSAGE) setPhoneAnswered(true)
-        if (!d.cancelled) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
-        setError(d.message)
-      }
+      if (e instanceof HeadcountUserError && wallet) forgetSession(wallet)
+      const d = describeError(e)
+      if (d.message === ALREADY_ANSWERED_MESSAGE) setAlreadyAnswered(true)
+      if (!d.cancelled) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
+      setError(d.message)
     } finally {
       setStep('idle')
     }
@@ -199,6 +200,9 @@ export default function PollScreen() {
         </Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: space.lg, rowGap: 2 }}>
           <Text style={{ fontFamily: font.monoSemi, fontSize: 14, color: color.stamp }}>pays {reward}</Text>
+          <Text variant="monoSmall" style={{ alignSelf: 'center', color: p.seekersOnly ? color.stamp : color.inkSoft }}>
+            {p.seekersOnly ? 'Seekers only' : 'Open'}
+          </Text>
           <Text variant="monoSmall" style={{ alignSelf: 'center' }}>
             {p.maxAnswers - p.answers} of {p.maxAnswers} left
           </Text>
@@ -225,9 +229,9 @@ export default function PollScreen() {
                 </Text>
               </Pressable>
             </View>
-          ) : phoneAnswered ? (
+          ) : alreadyAnswered ? (
             <Notice tone="warn">
-              This Seeker phone already answered this poll, so its answer is counted. Results are open.
+              {`This ${p.seekersOnly ? 'Seeker phone' : 'phone or wallet'} already answered this poll, so its answer is counted. Results are open.`}
             </Notice>
           ) : isCreator && yourChoice === undefined ? (
             <Text variant="small">You created this poll, so the tally is open to you.</Text>

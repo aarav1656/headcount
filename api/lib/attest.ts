@@ -10,7 +10,7 @@ import {
   type SignatureBytes,
 } from "@solana/kit";
 
-export const DOMAIN = new TextEncoder().encode("headcount:v1");
+export const DOMAIN = new TextEncoder().encode("headcount:v2");
 export const SIGN_IN_WINDOW_SECONDS = 300;
 export const ATTESTATION_TTL_SECONDS = 600;
 
@@ -18,13 +18,17 @@ const addressEncoder = getAddressEncoder();
 const b58 = getBase58Decoder();
 const b58Bytes = getBase58Encoder();
 
-/** b"headcount:v1" || wallet(32) || sgt_mint(32) || expires_at i64 LE */
-export function attestationMessage(wallet: Address, sgtMint: Address, expiresAt: bigint): Uint8Array {
-  const out = new Uint8Array(DOMAIN.length + 32 + 32 + 8);
+/** 1 = the wallet holds a Seeker Genesis Token (identity is the SGT mint), 0 = any other wallet (identity is the wallet). */
+export type Tier = 0 | 1;
+
+/** b"headcount:v2" || wallet(32) || identity(32) || tier(u8) || expires_at i64 LE */
+export function attestationMessage(wallet: Address, identity: Address, tier: Tier, expiresAt: bigint): Uint8Array {
+  const out = new Uint8Array(DOMAIN.length + 32 + 32 + 1 + 8);
   out.set(DOMAIN, 0);
   out.set(addressEncoder.encode(wallet), DOMAIN.length);
-  out.set(addressEncoder.encode(sgtMint), DOMAIN.length + 32);
-  new DataView(out.buffer).setBigInt64(DOMAIN.length + 64, expiresAt, true);
+  out.set(addressEncoder.encode(identity), DOMAIN.length + 32);
+  out[DOMAIN.length + 64] = tier;
+  new DataView(out.buffer).setBigInt64(DOMAIN.length + 65, expiresAt, true);
   return out;
 }
 
@@ -60,9 +64,10 @@ export async function loadAttestorKey(secretB58: string | undefined): Promise<Cr
 export async function signAttestation(
   attestor: CryptoKeyPair,
   wallet: Address,
-  sgtMint: Address,
+  identity: Address,
+  tier: Tier,
   expiresAt: bigint,
 ): Promise<string> {
-  const sig = await signBytes(attestor.privateKey, attestationMessage(wallet, sgtMint, expiresAt));
+  const sig = await signBytes(attestor.privateKey, attestationMessage(wallet, identity, tier, expiresAt));
   return b58.decode(sig);
 }

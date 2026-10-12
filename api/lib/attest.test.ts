@@ -23,31 +23,36 @@ const SGT = address("5mXbkqKz883aufhAsx3p5Z1NcvD2ppZbdTTznM6oUKLj");
 const EXPIRES = 1_800_000_123n;
 const b58 = getBase58Encoder();
 
-test("message bytes are exactly domain || wallet || sgt_mint || expires_at i64 LE", () => {
-  const msg = attestationMessage(WALLET, SGT, EXPIRES);
-  const expected = Buffer.concat([
-    Buffer.from("headcount:v1", "utf8"),
-    Buffer.from(b58.encode(WALLET)),
-    Buffer.from(b58.encode(SGT)),
-    Buffer.from(new BigInt64Array([EXPIRES]).buffer),
-  ]);
-  assert.equal(msg.length, 12 + 32 + 32 + 8);
-  assert.deepEqual(Buffer.from(msg), expected);
-  assert.equal(Buffer.from(msg).readBigInt64LE(76), EXPIRES);
+test("message bytes are exactly domain || wallet || identity || tier || expires_at i64 LE", () => {
+  for (const tier of [0, 1] as const) {
+    const msg = attestationMessage(WALLET, SGT, tier, EXPIRES);
+    const expected = Buffer.concat([
+      Buffer.from("headcount:v2", "utf8"),
+      Buffer.from(b58.encode(WALLET)),
+      Buffer.from(b58.encode(SGT)),
+      Buffer.from([tier]),
+      Buffer.from(new BigInt64Array([EXPIRES]).buffer),
+    ]);
+    assert.equal(msg.length, 12 + 32 + 32 + 1 + 8);
+    assert.deepEqual(Buffer.from(msg), expected);
+    assert.equal(Buffer.from(msg)[76], tier);
+    assert.equal(Buffer.from(msg).readBigInt64LE(77), EXPIRES);
+  }
 });
 
 test("signature verifies over the message and fails when any byte is tampered", async () => {
   const kp = await generateKeyPair();
-  const sigB58 = await signAttestation(kp, WALLET, SGT, EXPIRES);
+  const sigB58 = await signAttestation(kp, WALLET, SGT, 1, EXPIRES);
   const sig = b58.encode(sigB58) as SignatureBytes;
-  const msg = attestationMessage(WALLET, SGT, EXPIRES);
+  const msg = attestationMessage(WALLET, SGT, 1, EXPIRES);
   assert.equal(await verifySignature(kp.publicKey, sig, msg), true);
 
   const otherWallet = address(await getAddressFromPublicKey((await generateKeyPair()).publicKey));
   for (const tampered of [
-    attestationMessage(otherWallet, SGT, EXPIRES),
-    attestationMessage(WALLET, otherWallet, EXPIRES),
-    attestationMessage(WALLET, SGT, EXPIRES + 1n),
+    attestationMessage(otherWallet, SGT, 1, EXPIRES),
+    attestationMessage(WALLET, otherWallet, 1, EXPIRES),
+    attestationMessage(WALLET, SGT, 0, EXPIRES),
+    attestationMessage(WALLET, SGT, 1, EXPIRES + 1n),
     Uint8Array.from(msg, (b, i) => (i === 0 ? b ^ 1 : b)),
   ]) {
     assert.equal(await verifySignature(kp.publicKey, sig, tampered), false);

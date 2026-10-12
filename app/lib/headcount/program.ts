@@ -9,6 +9,7 @@ import {
   getArrayDecoder,
   getArrayEncoder,
   getBooleanDecoder,
+  getBooleanEncoder,
   getBase58Decoder,
   getBytesDecoder,
   getI64Decoder,
@@ -39,6 +40,11 @@ export const MAX_QUESTION_BYTES = 160
 export const MAX_OPTION_BYTES = 40
 export const MIN_OPTIONS = 2
 export const MAX_OPTIONS = 6
+
+/** Identity tiers. A seeker identity is the SGT mint, a wallet identity is the answering wallet itself. */
+export const TIER_WALLET = 0
+export const TIER_SEEKER = 1
+export type Tier = typeof TIER_WALLET | typeof TIER_SEEKER
 
 // Anchor discriminators, copied from program/idl/headcount.json. discriminators.test.ts
 // recomputes them as sha256("global:<ix>") / sha256("account:<Name>") and compares to the IDL.
@@ -74,15 +80,21 @@ export type Poll = {
   closesAt: bigint
   question: string
   options: string[]
+  /** Every answer, both tiers. */
   tallies: number[]
   closed: boolean
+  seekersOnly: boolean
+  /** Answers from Seeker phones only (a subset of `tallies`). */
+  seekerTallies: number[]
+  seekerAnswers: number
 }
 
 export type Answer = {
   address: Address
   poll: Address
   answerer: Address
-  sgtMint: Address
+  identity: Address
+  tier: Tier
   choice: number
   answeredAt: bigint
 }
@@ -104,13 +116,17 @@ const pollDecoder = getStructDecoder([
   ['closed', getBooleanDecoder()],
   ['bump', getU8Decoder()],
   ['vaultBump', getU8Decoder()],
+  ['seekersOnly', getBooleanDecoder()],
+  ['seekerTallies', getArrayDecoder(getU32Decoder(), { size: MAX_OPTIONS })],
+  ['seekerAnswers', getU32Decoder()],
 ])
 
 const answerDecoder = getStructDecoder([
   ['discriminator', fixDecoderSize(getBytesDecoder(), 8)],
   ['poll', getAddressDecoder()],
   ['answerer', getAddressDecoder()],
-  ['sgtMint', getAddressDecoder()],
+  ['identity', getAddressDecoder()],
+  ['tier', getU8Decoder()],
   ['choice', getU8Decoder()],
   ['answeredAt', getI64Decoder()],
   ['bump', getU8Decoder()],
@@ -138,6 +154,9 @@ export function decodePoll(addressOf: Address, data: Uint8Array): Poll {
     options: p.options,
     tallies: p.tallies.slice(0, p.options.length),
     closed: p.closed,
+    seekersOnly: p.seekersOnly,
+    seekerTallies: p.seekerTallies.slice(0, p.options.length),
+    seekerAnswers: p.seekerAnswers,
   }
 }
 
@@ -148,7 +167,8 @@ export function decodeAnswer(addressOf: Address, data: Uint8Array): Answer {
     address: addressOf,
     poll: a.poll,
     answerer: a.answerer,
-    sgtMint: a.sgtMint,
+    identity: a.identity,
+    tier: a.tier as Tier,
     choice: a.choice,
     answeredAt: a.answeredAt,
   }
@@ -169,11 +189,11 @@ export function vaultAddress(poll: Address): Address {
   return findProgramAddress(PROGRAM_ID, [utf8.encode('vault'), addr.encode(poll) as Uint8Array])[0]
 }
 
-export function answerAddress(poll: Address, sgtMint: Address): Address {
+export function answerAddress(poll: Address, identity: Address): Address {
   return findProgramAddress(PROGRAM_ID, [
     utf8.encode('answer'),
     addr.encode(poll) as Uint8Array,
-    addr.encode(sgtMint) as Uint8Array,
+    addr.encode(identity) as Uint8Array,
   ])[0]
 }
 
@@ -214,6 +234,7 @@ const createPollArgs = getStructEncoder([
   ['rewardPerAnswer', getU64Encoder()],
   ['maxAnswers', getU32Encoder()],
   ['closesAt', getI64Encoder()],
+  ['seekersOnly', getBooleanEncoder()],
 ])
 
 export type CreatePollParams = {
@@ -224,6 +245,7 @@ export type CreatePollParams = {
   rewardPerAnswer: bigint
   maxAnswers: number
   closesAt: bigint
+  seekersOnly: boolean
   rewardMint: Address
   tokenProgram: Address
 }
@@ -239,6 +261,7 @@ export function createPollInstruction(p: CreatePollParams): Instruction {
       rewardPerAnswer: p.rewardPerAnswer,
       maxAnswers: p.maxAnswers,
       closesAt: p.closesAt,
+      seekersOnly: p.seekersOnly,
     }) as Uint8Array,
   )
   return {
@@ -260,7 +283,8 @@ export type AnswerParams = {
   answerer: Address
   poll: Poll
   choice: number
-  sgtMint: Address
+  identity: Address
+  tier: Tier
   expiresAt: bigint
   tokenProgram: Address
 }
@@ -270,9 +294,10 @@ export function answerInstruction(p: AnswerParams): Instruction {
     IX.answer,
     getStructEncoder([
       ['choice', getU8Encoder()],
-      ['sgtMint', getAddressEncoder()],
+      ['identity', getAddressEncoder()],
+      ['tier', getU8Encoder()],
       ['expiresAt', getI64Encoder()],
-    ]).encode({ choice: p.choice, sgtMint: p.sgtMint, expiresAt: p.expiresAt }) as Uint8Array,
+    ]).encode({ choice: p.choice, identity: p.identity, tier: p.tier, expiresAt: p.expiresAt }) as Uint8Array,
   )
   return {
     programAddress: PROGRAM_ID,
@@ -280,7 +305,7 @@ export function answerInstruction(p: AnswerParams): Instruction {
       signer(p.answerer),
       ro(configAddress()),
       rw(p.poll.address),
-      rw(answerAddress(p.poll.address, p.sgtMint)),
+      rw(answerAddress(p.poll.address, p.identity)),
       ro(p.poll.rewardMint),
       rw(vaultAddress(p.poll.address)),
       rw(ataAddress(p.answerer, p.poll.rewardMint, p.tokenProgram)),
@@ -318,14 +343,15 @@ export function initConfigInstruction(p: { admin: Address; attestor: Address }):
 
 // ---- attestation + Ed25519 precompile ----
 
-const ATTEST_PREFIX = utf8.encode('headcount:v1')
+const ATTEST_PREFIX = utf8.encode('headcount:v2')
 
-/** b"headcount:v1" || answerer(32) || sgt_mint(32) || expires_at i64 LE, the bytes the attestor signs. */
-export function attestationMessage(answerer: Address, sgtMint: Address, expiresAt: bigint): Uint8Array {
+/** b"headcount:v2" || answerer(32) || identity(32) || tier(u8) || expires_at i64 LE, the bytes the attestor signs. */
+export function attestationMessage(answerer: Address, identity: Address, tier: Tier, expiresAt: bigint): Uint8Array {
   return concat(
     ATTEST_PREFIX,
     addr.encode(answerer) as Uint8Array,
-    addr.encode(sgtMint) as Uint8Array,
+    addr.encode(identity) as Uint8Array,
+    Uint8Array.of(tier),
     getI64Encoder().encode(expiresAt) as Uint8Array,
   )
 }

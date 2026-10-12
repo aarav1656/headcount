@@ -14,7 +14,7 @@ export function PollRow({ poll, decimals, answered, onPress }: Props) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${poll.question}. Pays ${formatTokens(poll.rewardPerAnswer, decimals)} ${ACTIVE_CLUSTER.rewardLabel}. ${left} answers left.`}
+      accessibilityLabel={`${poll.question}. Pays ${formatTokens(poll.rewardPerAnswer, decimals)} ${ACTIVE_CLUSTER.rewardLabel}. ${left} answers left. ${poll.seekersOnly ? 'Seekers only' : 'Open to any wallet'}.`}
       onPress={onPress}
       style={({ pressed }) => ({
         flexDirection: 'row',
@@ -40,7 +40,10 @@ export function PollRow({ poll, decimals, answered, onPress }: Props) {
         </View>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
           <Text variant="monoSmall">
-            {left} left of {poll.maxAnswers}
+            <Text variant="monoSmall" style={{ color: poll.seekersOnly ? color.stamp : color.inkSoft }}>
+              {poll.seekersOnly ? 'Seekers only' : 'Open'}
+            </Text>
+            {` · ${left} left of ${poll.maxAnswers}`}
           </Text>
           {answered ? (
             <Text variant="monoSmall" style={{ color: color.success }}>

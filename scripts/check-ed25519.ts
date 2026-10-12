@@ -24,6 +24,7 @@ import {
   decodePoll,
   discriminatorBase58,
   ed25519Instruction,
+  TIER_SEEKER,
   TOKEN_PROGRAM,
 } from '../app/lib/headcount/program'
 import { loadSigner, rpc } from './chain'
@@ -42,13 +43,14 @@ const fakeAttestorSk = ed25519.utils.randomSecretKey()
 const fakeAttestor = address(getBase58Decoder().decode(ed25519.getPublicKey(fakeAttestorSk)))
 const sgt = address(getBase58Decoder().decode(ed25519.getPublicKey(ed25519.utils.randomSecretKey())))
 const expiresAt = BigInt(Math.floor(Date.now() / 1000) + 600)
-const msg = attestationMessage(signer.address, sgt, expiresAt)
+const msg = attestationMessage(signer.address, sgt, TIER_SEEKER, expiresAt)
 
 const answerIx = answerInstruction({
   answerer: signer.address,
   poll,
   choice: 0,
-  sgtMint: sgt,
+  identity: sgt,
+  tier: TIER_SEEKER,
   expiresAt,
   tokenProgram: TOKEN_PROGRAM,
 })

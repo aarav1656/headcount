@@ -15,7 +15,7 @@ export default function NoSeekerToken() {
       edges={['top', 'bottom']}
       footer={
         <View style={{ gap: space.sm }}>
-          <Button label="Keep browsing" onPress={() => router.dismissTo('/')} />
+          <Button label="See open polls" onPress={() => router.dismissTo('/')} />
           <Button label="Create a poll instead" kind="secondary" onPress={() => router.dismissTo('/create')} />
         </View>
       }
@@ -26,8 +26,9 @@ export default function NoSeekerToken() {
           Headcount counts phones, not wallets.
         </Text>
         <Text variant="body" style={{ color: color.inkSoft }}>
+          This poll is for Seeker phones only.{' '}
           {wallet ? `The wallet ${ellipsify(wallet, 4, '...')}` : 'This wallet'} does not hold a Seeker Genesis Token,
-          so it cannot answer yet.
+          so it cannot answer this one.
         </Text>
       </View>
 
@@ -38,11 +39,11 @@ export default function NoSeekerToken() {
         />
         <Block
           title="Why phones?"
-          body="Anyone can make a thousand wallets. Nobody can make a thousand Seekers. One SGT is one answer per poll, so a tally means that many distinct phones."
+          body="Anyone can make a thousand wallets. Nobody can make a thousand Seekers. On a Seekers-only poll one SGT is one answer, so a tally means that many distinct phones."
         />
         <Block
           title="What you can still do"
-          body="Browse every open poll, create and fund your own, and read the results of polls you created. Connect the wallet that holds your SGT to answer and earn."
+          body="Answer every poll marked Open and earn the reward, create and fund your own, and read the results of polls you created. Connect the wallet that holds your SGT to answer Seekers-only polls."
         />
       </View>
     </Screen>

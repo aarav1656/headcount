@@ -11,17 +11,20 @@ const PROGRAM_ERRORS: Record<number, string> = {
   6008: 'This poll has ended.',
   6009: 'This poll has all the answers it asked for.',
   6010: 'That option does not exist.',
-  6011: 'Your Seeker check expired. Try again.',
-  6012: 'The Seeker check was missing from the transaction.',
-  6013: 'The Seeker check was malformed.',
-  6014: 'The Seeker check was not signed by the Headcount attestor.',
-  6015: 'The Seeker check does not match this wallet and phone.',
+  6011: 'Your identity check expired. Try again.',
+  6012: 'The identity check was missing from the transaction.',
+  6013: 'The identity check was malformed.',
+  6014: 'The identity check was not signed by the Headcount attestor.',
+  6015: 'The identity check does not match this wallet.',
   6016: 'Only the admin can do this.',
   6017: 'Only the poll creator can do this.',
   6018: 'This poll cannot be closed yet.',
+  6019: 'This poll only accepts Seeker phones.',
+  6020: 'The identity check carried an unknown tier. Update the app and try again.',
+  6021: 'The identity check does not match this wallet.',
 }
 
-export const ALREADY_ANSWERED_MESSAGE = 'This phone already answered this poll.'
+export const ALREADY_ANSWERED_MESSAGE = 'This phone or wallet already answered this poll.'
 
 const SYSTEM_ERRORS: Record<number, string> = {
   0: ALREADY_ANSWERED_MESSAGE,

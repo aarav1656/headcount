@@ -8,15 +8,19 @@ use anchor_spl::token_interface::{
     TransferChecked,
 };
 
-declare_id!("2bgD83ZSF8vehRfEadp5iPW1YGhnMpQDQPD5jZLzCccW");
+declare_id!("12kijt3UyT3TGnGbQn9Z4M9qe9uuHyc7ypWhLE57dkF3");
 
 pub const ED25519_PROGRAM_ID: Pubkey = pubkey!("Ed25519SigVerify111111111111111111111111111");
 pub const MAX_QUESTION: usize = 160;
 pub const MAX_OPTION: usize = 40;
 pub const MIN_OPTIONS: usize = 2;
 pub const MAX_OPTIONS: usize = 6;
-pub const ATTEST_PREFIX: &[u8] = b"headcount:v1";
-const ATTEST_LEN: usize = 12 + 32 + 32 + 8;
+pub const ATTEST_PREFIX: &[u8] = b"headcount:v2";
+/// Identity tiers. A seeker identity is the SGT mint, a wallet identity is the answerer wallet.
+pub const TIER_WALLET: u8 = 0;
+pub const TIER_SEEKER: u8 = 1;
+/// prefix(12) || answerer(32) || identity(32) || tier(1) || expires_at i64 LE(8)
+const ATTEST_LEN: usize = 12 + 32 + 32 + 1 + 8;
 
 #[program]
 pub mod headcount {
@@ -43,6 +47,7 @@ pub mod headcount {
         reward_per_answer: u64,
         max_answers: u32,
         closes_at: i64,
+        seekers_only: bool,
     ) -> Result<()> {
         require!(
             !question.is_empty() && question.len() <= MAX_QUESTION,
@@ -79,6 +84,9 @@ pub mod headcount {
         poll.closed = false;
         poll.bump = ctx.bumps.poll;
         poll.vault_bump = ctx.bumps.vault;
+        poll.seekers_only = seekers_only;
+        poll.seeker_tallies = [0; MAX_OPTIONS];
+        poll.seeker_answers = 0;
 
         transfer_checked(
             CpiContext::new(
@@ -98,7 +106,8 @@ pub mod headcount {
     pub fn answer(
         ctx: Context<AnswerPoll>,
         choice: u8,
-        sgt_mint: Pubkey,
+        identity: Pubkey,
+        tier: u8,
         expires_at: i64,
     ) -> Result<()> {
         let now = Clock::get()?.unix_timestamp;
@@ -110,13 +119,26 @@ pub mod headcount {
             (choice as usize) < poll.options.len(),
             HeadcountError::InvalidChoice
         );
+        require!(
+            tier == TIER_WALLET || tier == TIER_SEEKER,
+            HeadcountError::InvalidTier
+        );
+        require!(
+            tier == TIER_SEEKER || identity == ctx.accounts.answerer.key(),
+            HeadcountError::InvalidIdentity
+        );
+        require!(
+            !poll.seekers_only || tier == TIER_SEEKER,
+            HeadcountError::SeekersOnly
+        );
         require!(now < expires_at, HeadcountError::AttestationExpired);
 
         let mut expected = [0u8; ATTEST_LEN];
         expected[..12].copy_from_slice(ATTEST_PREFIX);
         expected[12..44].copy_from_slice(ctx.accounts.answerer.key().as_ref());
-        expected[44..76].copy_from_slice(sgt_mint.as_ref());
-        expected[76..84].copy_from_slice(&expires_at.to_le_bytes());
+        expected[44..76].copy_from_slice(identity.as_ref());
+        expected[76] = tier;
+        expected[77..85].copy_from_slice(&expires_at.to_le_bytes());
         verify_attestation(
             &ctx.accounts.instructions.to_account_info(),
             &ctx.accounts.config.attestor,
@@ -133,11 +155,23 @@ pub mod headcount {
             .answers
             .checked_add(1)
             .ok_or(HeadcountError::MathOverflow)?;
+        if tier == TIER_SEEKER {
+            let slot = poll
+                .seeker_tallies
+                .get_mut(choice as usize)
+                .ok_or(HeadcountError::InvalidChoice)?;
+            *slot = slot.checked_add(1).ok_or(HeadcountError::MathOverflow)?;
+            poll.seeker_answers = poll
+                .seeker_answers
+                .checked_add(1)
+                .ok_or(HeadcountError::MathOverflow)?;
+        }
 
         let a = &mut ctx.accounts.answer;
         a.poll = poll.key();
         a.answerer = ctx.accounts.answerer.key();
-        a.sgt_mint = sgt_mint;
+        a.identity = identity;
+        a.tier = tier;
         a.choice = choice;
         a.answered_at = now;
         a.bump = ctx.bumps.answer;
@@ -269,6 +303,9 @@ pub struct Poll {
     pub closed: bool,
     pub bump: u8,
     pub vault_bump: u8,
+    pub seekers_only: bool,
+    pub seeker_tallies: [u32; MAX_OPTIONS],
+    pub seeker_answers: u32,
 }
 
 impl Poll {
@@ -277,7 +314,8 @@ impl Poll {
         + 4 + MAX_QUESTION
         + 4 + MAX_OPTIONS * (4 + MAX_OPTION)
         + 4 * MAX_OPTIONS
-        + 1 + 1 + 1;
+        + 1 + 1 + 1
+        + 1 + 4 * MAX_OPTIONS + 4;
 }
 
 #[account]
@@ -285,7 +323,8 @@ impl Poll {
 pub struct Answer {
     pub poll: Pubkey,
     pub answerer: Pubkey,
-    pub sgt_mint: Pubkey,
+    pub identity: Pubkey,
+    pub tier: u8,
     pub choice: u8,
     pub answered_at: i64,
     pub bump: u8,
@@ -333,7 +372,7 @@ pub struct CreatePoll<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(choice: u8, sgt_mint: Pubkey)]
+#[instruction(choice: u8, identity: Pubkey)]
 pub struct AnswerPoll<'info> {
     #[account(mut)]
     pub answerer: Signer<'info>,
@@ -346,7 +385,7 @@ pub struct AnswerPoll<'info> {
     pub poll: Account<'info, Poll>,
     #[account(
         init, payer = answerer, space = 8 + Answer::INIT_SPACE,
-        seeds = [b"answer", poll.key().as_ref(), sgt_mint.as_ref()], bump
+        seeds = [b"answer", poll.key().as_ref(), identity.as_ref()], bump
     )]
     pub answer: Account<'info, Answer>,
     pub reward_mint: InterfaceAccount<'info, Mint>,
@@ -424,7 +463,7 @@ pub enum HeadcountError {
     BadEd25519,
     #[msg("Attestation not signed by the configured attestor")]
     WrongAttestor,
-    #[msg("Attestation message does not match answerer, SGT and expiry")]
+    #[msg("Attestation message does not match answerer, identity, tier and expiry")]
     WrongMessage,
     #[msg("Only the admin may do this")]
     NotAdmin,
@@ -432,4 +471,10 @@ pub enum HeadcountError {
     NotCreator,
     #[msg("Poll cannot be closed yet")]
     CannotCloseYet,
+    #[msg("This poll only accepts Seeker phones")]
+    SeekersOnly,
+    #[msg("Tier must be 0 (wallet) or 1 (seeker)")]
+    InvalidTier,
+    #[msg("A wallet-tier identity must be the answering wallet")]
+    InvalidIdentity,
 }

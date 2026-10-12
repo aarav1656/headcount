@@ -31,7 +31,11 @@ export async function loadSigner(
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 /** Sends and polls to confirmed. Throws on an on-chain error or on timeout. */
-export async function sendAndConfirm(payer: KeyPairSigner, instructions: Instruction[]): Promise<string> {
+export async function sendAndConfirm(
+  payer: KeyPairSigner,
+  instructions: Instruction[],
+  opts: { skipPreflight?: boolean } = {},
+): Promise<string> {
   const { value: blockhash } = await rpc.getLatestBlockhash({ commitment: 'confirmed' }).send()
   const message = pipe(
     createTransactionMessage({ version: 0 }),
@@ -46,6 +50,7 @@ export async function sendAndConfirm(payer: KeyPairSigner, instructions: Instruc
     .sendTransaction(getBase64EncodedWireTransaction(signed), {
       encoding: 'base64',
       preflightCommitment: 'confirmed',
+      skipPreflight: opts.skipPreflight ?? false,
     })
     .send()
   for (let i = 0; i < 60; i++) {
