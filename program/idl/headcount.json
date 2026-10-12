@@ -1,0 +1,766 @@
+{
+  "address": "2bgD83ZSF8vehRfEadp5iPW1YGhnMpQDQPD5jZLzCccW",
+  "metadata": {
+    "name": "headcount",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "One Seeker Genesis Token, one answer"
+  },
+  "instructions": [
+    {
+      "name": "answer",
+      "discriminator": [
+        72,
+        214,
+        44,
+        32,
+        53,
+        222,
+        9,
+        244
+      ],
+      "accounts": [
+        {
+          "name": "answerer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "poll",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  108,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "poll.creator",
+                "account": "Poll"
+              },
+              {
+                "kind": "account",
+                "path": "poll.poll_id",
+                "account": "Poll"
+              }
+            ]
+          }
+        },
+        {
+          "name": "answer",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  110,
+                  115,
+                  119,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "poll"
+              },
+              {
+                "kind": "arg",
+                "path": "sgt_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "reward_mint",
+          "relations": [
+            "poll"
+          ]
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "poll"
+              }
+            ]
+          }
+        },
+        {
+          "name": "answerer_token",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "answerer"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "reward_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "instructions",
+          "address": "Sysvar1nstructions1111111111111111111111111"
+        },
+        {
+          "name": "token_program"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "choice",
+          "type": "u8"
+        },
+        {
+          "name": "sgt_mint",
+          "type": "pubkey"
+        },
+        {
+          "name": "expires_at",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "close_poll",
+      "discriminator": [
+        139,
+        213,
+        162,
+        65,
+        172,
+        150,
+        123,
+        67
+      ],
+      "accounts": [
+        {
+          "name": "creator",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "poll"
+          ]
+        },
+        {
+          "name": "poll",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  108,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "creator"
+              },
+              {
+                "kind": "account",
+                "path": "poll.poll_id",
+                "account": "Poll"
+              }
+            ]
+          }
+        },
+        {
+          "name": "reward_mint",
+          "relations": [
+            "poll"
+          ]
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "poll"
+              }
+            ]
+          }
+        },
+        {
+          "name": "creator_token",
+          "writable": true
+        },
+        {
+          "name": "token_program"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "create_poll",
+      "discriminator": [
+        182,
+        171,
+        112,
+        238,
+        6,
+        219,
+        14,
+        110
+      ],
+      "accounts": [
+        {
+          "name": "creator",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "poll",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  108,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "creator"
+              },
+              {
+                "kind": "arg",
+                "path": "poll_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "reward_mint"
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "poll"
+              }
+            ]
+          }
+        },
+        {
+          "name": "creator_token",
+          "writable": true
+        },
+        {
+          "name": "token_program"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "poll_id",
+          "type": "u64"
+        },
+        {
+          "name": "question",
+          "type": "string"
+        },
+        {
+          "name": "options",
+          "type": {
+            "vec": "string"
+          }
+        },
+        {
+          "name": "reward_per_answer",
+          "type": "u64"
+        },
+        {
+          "name": "max_answers",
+          "type": "u32"
+        },
+        {
+          "name": "closes_at",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "init_config",
+      "discriminator": [
+        23,
+        235,
+        115,
+        232,
+        168,
+        96,
+        1,
+        231
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "attestor",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "set_attestor",
+      "discriminator": [
+        95,
+        11,
+        236,
+        157,
+        234,
+        146,
+        163,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "attestor",
+          "type": "pubkey"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Answer",
+      "discriminator": [
+        119,
+        227,
+        103,
+        4,
+        0,
+        164,
+        56,
+        37
+      ]
+    },
+    {
+      "name": "Config",
+      "discriminator": [
+        155,
+        12,
+        170,
+        224,
+        30,
+        250,
+        204,
+        130
+      ]
+    },
+    {
+      "name": "Poll",
+      "discriminator": [
+        110,
+        234,
+        167,
+        188,
+        231,
+        136,
+        153,
+        111
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "QuestionLength",
+      "msg": "Question must be 1..=160 bytes"
+    },
+    {
+      "code": 6001,
+      "name": "OptionCount",
+      "msg": "Poll needs 2..=6 options"
+    },
+    {
+      "code": 6002,
+      "name": "OptionLength",
+      "msg": "Each option must be 1..=40 bytes"
+    },
+    {
+      "code": 6003,
+      "name": "InvalidMaxAnswers",
+      "msg": "max_answers must be at least 1"
+    },
+    {
+      "code": 6004,
+      "name": "InvalidReward",
+      "msg": "reward_per_answer must be at least 1"
+    },
+    {
+      "code": 6005,
+      "name": "InvalidCloseTime",
+      "msg": "closes_at must be in the future"
+    },
+    {
+      "code": 6006,
+      "name": "MathOverflow",
+      "msg": "Arithmetic overflow"
+    },
+    {
+      "code": 6007,
+      "name": "PollClosed",
+      "msg": "Poll is closed"
+    },
+    {
+      "code": 6008,
+      "name": "PollEnded",
+      "msg": "Poll has ended"
+    },
+    {
+      "code": 6009,
+      "name": "PollFull",
+      "msg": "Poll has reached max answers"
+    },
+    {
+      "code": 6010,
+      "name": "InvalidChoice",
+      "msg": "Choice out of range"
+    },
+    {
+      "code": 6011,
+      "name": "AttestationExpired",
+      "msg": "Attestation expired"
+    },
+    {
+      "code": 6012,
+      "name": "MissingEd25519",
+      "msg": "Previous instruction is not an Ed25519 verify"
+    },
+    {
+      "code": 6013,
+      "name": "BadEd25519",
+      "msg": "Malformed Ed25519 instruction"
+    },
+    {
+      "code": 6014,
+      "name": "WrongAttestor",
+      "msg": "Attestation not signed by the configured attestor"
+    },
+    {
+      "code": 6015,
+      "name": "WrongMessage",
+      "msg": "Attestation message does not match answerer, SGT and expiry"
+    },
+    {
+      "code": 6016,
+      "name": "NotAdmin",
+      "msg": "Only the admin may do this"
+    },
+    {
+      "code": 6017,
+      "name": "NotCreator",
+      "msg": "Only the creator may do this"
+    },
+    {
+      "code": 6018,
+      "name": "CannotCloseYet",
+      "msg": "Poll cannot be closed yet"
+    }
+  ],
+  "types": [
+    {
+      "name": "Answer",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "poll",
+            "type": "pubkey"
+          },
+          {
+            "name": "answerer",
+            "type": "pubkey"
+          },
+          {
+            "name": "sgt_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "choice",
+            "type": "u8"
+          },
+          {
+            "name": "answered_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Config",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "attestor",
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Poll",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "creator",
+            "type": "pubkey"
+          },
+          {
+            "name": "poll_id",
+            "type": "u64"
+          },
+          {
+            "name": "reward_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "reward_per_answer",
+            "type": "u64"
+          },
+          {
+            "name": "max_answers",
+            "type": "u32"
+          },
+          {
+            "name": "answers",
+            "type": "u32"
+          },
+          {
+            "name": "closes_at",
+            "type": "i64"
+          },
+          {
+            "name": "question",
+            "type": "string"
+          },
+          {
+            "name": "options",
+            "type": {
+              "vec": "string"
+            }
+          },
+          {
+            "name": "tallies",
+            "type": {
+              "array": [
+                "u32",
+                6
+              ]
+            }
+          },
+          {
+            "name": "closed",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "vault_bump",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ]
+}
