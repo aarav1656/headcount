@@ -1,61 +1,88 @@
-import { ActivityIndicator, Pressable, StyleSheet, type PressableProps } from 'react-native'
-import { color, font, radius } from '@/constants/theme'
+import { Pressable, View, type PressableProps } from 'react-native'
+import { border, color, space } from '@/constants/theme'
 import { Text } from './text'
+import { Pointer } from './glyphs'
+import { useFocus } from './focus'
+import { TallyProgress } from './tally'
 
-type Props = Omit<PressableProps, 'children'> & {
+type Props = Omit<PressableProps, 'children' | 'style'> & {
   label: string
-  kind?: 'primary' | 'secondary' | 'ghost'
+  /** bar: ink-filled full-width. outline: 1px ink rule. link: bare mono text. */
+  kind?: 'bar' | 'outline' | 'link'
   loading?: boolean
+  pointer?: boolean
 }
 
-export function Button({ label, kind = 'primary', loading, disabled, style, ...rest }: Props) {
-  const off = disabled || loading
+/**
+ * States: default, pressed (tally fill on the bar, paper2 elsewhere), focus (2px tally outline),
+ * disabled (ink3 text, no fill), loading (COUNTING with five tally marks filling in).
+ */
+export function Button({ label, kind = 'bar', loading, disabled, pointer = true, ...rest }: Props) {
+  const off = !!disabled && !loading
+  const { bind, ring } = useFocus()
+  const inactive = disabled || loading
+  const bar = kind === 'bar'
+  const link = kind === 'link'
+
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityState={{ disabled: !!off, busy: !!loading }}
-      disabled={off}
-      android_ripple={{ color: kind === 'primary' ? color.stampDeep : color.rule }}
-      style={(s) => [
-        styles.base,
-        styles[kind],
-        s.pressed && (kind === 'primary' ? styles.primaryPressed : styles.otherPressed),
-        off && styles.off,
-        typeof style === 'function' ? style(s) : style,
-      ]}
+      accessibilityState={{ disabled: !!inactive, busy: !!loading }}
+      disabled={inactive}
+      {...bind}
       {...rest}
+      style={({ pressed }) => [
+        {
+          minHeight: link ? 44 : 56,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: link ? 'flex-start' : 'space-between',
+          gap: space.md,
+          paddingHorizontal: link ? 0 : space.lg,
+          borderWidth: link ? 0 : border.hair,
+          borderColor: off ? color.ink3 : color.ink,
+          backgroundColor: loading
+            ? color.paper
+            : off || link
+              ? 'transparent'
+              : bar
+                ? pressed
+                  ? color.tally
+                  : color.ink
+                : pressed
+                  ? color.paper2
+                  : 'transparent',
+        },
+        ring,
+      ]}
     >
-      {loading ? (
-        <ActivityIndicator color={kind === 'primary' ? color.onStamp : color.ink} />
-      ) : (
-        <Text
-          style={{
-            fontFamily: font.bodySemi,
-            fontSize: 16,
-            color: kind === 'primary' ? color.onStamp : color.ink,
-            textAlign: 'center',
-          }}
-        >
-          {label}
-        </Text>
-      )}
+      {({ pressed }) => {
+        const ink = loading
+          ? color.ink
+          : off
+            ? color.ink3
+            : bar
+              ? pressed
+                ? color.tallyInk
+                : color.paper
+              : pressed && link
+                ? color.tally
+                : color.ink
+        return (
+          <>
+            <Text variant="action" style={{ color: ink, flexShrink: 1 }} numberOfLines={1}>
+              {loading ? 'Counting…' : label}
+            </Text>
+            {loading ? (
+              <TallyProgress height={18} tint={color.ink} />
+            ) : pointer ? (
+              <View>
+                <Pointer tint={ink} />
+              </View>
+            ) : null}
+          </>
+        )
+      }}
     </Pressable>
   )
 }
-
-const styles = StyleSheet.create({
-  base: {
-    minHeight: 52,
-    borderRadius: radius.md,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  primary: { backgroundColor: color.stamp },
-  secondary: { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: color.ink },
-  ghost: { backgroundColor: 'transparent', minHeight: 44 },
-  primaryPressed: { backgroundColor: color.stampDeep },
-  otherPressed: { backgroundColor: color.paperDeep },
-  off: { opacity: 0.45 },
-})

@@ -1,16 +1,15 @@
 import { useMemo } from 'react'
-import { ActivityIndicator, View } from 'react-native'
+import { View } from 'react-native'
 import { useRouter } from 'expo-router'
-import { Screen } from '@/components/ui/screen'
+import { Screen, BleedRule } from '@/components/ui/screen'
 import { Text } from '@/components/ui/text'
 import { Button } from '@/components/ui/button'
-import { Empty } from '@/components/ui/empty'
+import { Problem } from '@/components/ui/stamp'
+import { TallyProgress } from '@/components/ui/tally'
 import { PollRow } from '@/components/poll-row'
-import { Wordmark } from '@/components/wordmark'
-import { WalletChip } from '@/components/wallet-chip'
+import { UNIT } from '@/utils/skr'
 import { ACTIVE_CLUSTER } from '@/constants/headcount'
 import { color, space } from '@/constants/theme'
-import { formatTokens } from '@/lib/format'
 import { useMint, useMyAnswers, usePolls } from '@/features/headcount/queries'
 import { useHeadcountWallet } from '@/features/headcount/use-headcount-wallet'
 
@@ -28,74 +27,60 @@ export default function Today() {
   )
   const answered = useMemo(() => new Set((mine.data?.answers ?? []).map((a) => a.poll)), [mine.data])
   const decimals = mint.data?.decimals ?? 6
-  const waiting = open.reduce((n, p) => n + p.rewardPerAnswer * BigInt(p.maxAnswers - p.answers), 0n)
 
   return (
-    <Screen refreshing={polls.isRefetching} onRefresh={() => polls.refetch()}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Wordmark />
-        <WalletChip />
-      </View>
+    <Screen wallet refreshing={polls.isRefetching} onRefresh={() => polls.refetch()}>
+      <Text variant="body" style={{ color: color.ink2 }}>
+        Every answer here comes from a different phone. Answer, get paid in {UNIT}.
+      </Text>
 
       <View style={{ gap: space.md }}>
-        <Text variant="display">One answer per phone.</Text>
-        <Text variant="body" style={{ color: color.inkSoft }}>
-          Projects ask. Anyone with a wallet answers open polls and is paid in {ACTIVE_CLUSTER.rewardLabel} in the same
-          transaction. Seekers-only polls count phones, not wallets, so bots and wallet farms cannot vote twice.
-        </Text>
-      </View>
-
-      <View style={{ gap: space.xs }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
-          <Text variant="title">Open polls</Text>
-          {open.length > 0 ? (
-            <Text variant="monoSmall">
-              {formatTokens(waiting, decimals)} {ACTIVE_CLUSTER.rewardLabel} to earn
-            </Text>
-          ) : null}
+        <View style={{ gap: space.sm }}>
+          <Text variant="label">Open ballots{open.length > 0 ? ` · ${open.length}` : ''}</Text>
+          <BleedRule />
         </View>
 
         {polls.isLoading ? (
-          <View style={{ paddingVertical: space.xl, alignItems: 'center', gap: space.sm }}>
-            <ActivityIndicator color={color.stamp} />
-            <Text variant="monoSmall">Reading polls from {ACTIVE_CLUSTER.key}</Text>
+          <View style={{ paddingVertical: space.xl, gap: space.md }}>
+            <TallyProgress height={22} />
+            <Text variant="label" style={{ color: color.ink2 }}>
+              Reading the ballot box on {ACTIVE_CLUSTER.key}
+            </Text>
           </View>
         ) : polls.isError ? (
-          <Empty
-            title="Could not load polls"
-            body={`The ${ACTIVE_CLUSTER.key} RPC did not answer. Check your connection, then try again.`}
-            actionLabel="Try again"
-            onAction={() => polls.refetch()}
-          />
+          <View style={{ gap: space.md, paddingVertical: space.lg }}>
+            <Problem>{`The ${ACTIVE_CLUSTER.key} network did not answer. Check your connection, then try again.`}</Problem>
+            <Button label="Try again" kind="outline" onPress={() => polls.refetch()} />
+          </View>
         ) : open.length === 0 ? (
-          <Empty
-            title="No open polls right now"
-            body="Every poll is closed or fully answered. Fund the next one and answerers will see it here."
-            marks={5}
-            actionLabel="Create a poll"
-            onAction={() => router.navigate('/create')}
-          />
+          <View style={{ gap: space.lg, paddingVertical: space.lg }}>
+            <Text variant="question">No open ballots right now.</Text>
+            <Text variant="body" style={{ color: color.ink2 }}>
+              Draft one, or check back after the next issue.
+            </Text>
+            <Button label="Draft a ballot" kind="outline" onPress={() => router.navigate('/create')} />
+          </View>
         ) : (
-          open.map((p) => (
-            <PollRow
-              key={p.address}
-              poll={p}
-              decimals={decimals}
-              answered={answered.has(p.address)}
-              onPress={() => router.push(`/poll/${p.address}`)}
-            />
-          ))
+          <View>
+            {open.map((p) => (
+              <PollRow
+                key={p.address}
+                poll={p}
+                decimals={decimals}
+                answered={answered.has(p.address)}
+                onPress={() => router.push(`/poll/${p.address}`)}
+              />
+            ))}
+          </View>
         )}
       </View>
 
       {open.length > 0 ? (
         <View style={{ gap: space.sm }}>
-          <Text variant="small">
-            Need a count of your own users? Fund a poll and read the tally when phones answer.
+          <Text variant="body" style={{ color: color.ink2 }}>
+            Need a count of your own users? Fund a ballot and read the tally as phones answer.
           </Text>
-          <View style={{ alignSelf: 'flex-start' }}>
-            <Button label="Create a poll" kind="secondary" onPress={() => router.navigate('/create')} />
-          </View>
+          <Button label="Draft a ballot" kind="link" onPress={() => router.navigate('/create')} />
         </View>
       ) : null}
     </Screen>

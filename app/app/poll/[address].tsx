@@ -1,16 +1,21 @@
 import { useMemo, useState } from 'react'
-import { ActivityIndicator, Linking, Pressable, View } from 'react-native'
+import { View } from 'react-native'
 import * as Haptics from 'expo-haptics'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { address as toAddress, type Address } from '@solana/kit'
-import { Screen } from '@/components/ui/screen'
-import { Text } from '@/components/ui/text'
+import { Screen, BleedRule } from '@/components/ui/screen'
+import { Text, questionVariant } from '@/components/ui/text'
 import { Button } from '@/components/ui/button'
-import { Empty, Notice } from '@/components/ui/empty'
+import { Problem, Stamp } from '@/components/ui/stamp'
+import { TallyProgress } from '@/components/ui/tally'
+import { BallotRow } from '@/components/ballot-row'
+import { PollMeta } from '@/components/poll-meta'
+import { Receipt } from '@/components/receipt'
 import { Results } from '@/components/results'
-import { ACTIVE_CLUSTER, ATTESTOR_PUBKEY, explorerTx } from '@/constants/headcount'
-import { color, font, radius, space } from '@/constants/theme'
-import { formatTokens, timeLeft } from '@/lib/format'
+import { ACTIVE_CLUSTER, ATTESTOR_PUBKEY } from '@/constants/headcount'
+import { color, space } from '@/constants/theme'
+import { UNIT, money } from '@/utils/skr'
+import { formatTokens } from '@/lib/format'
 import { fetchAnswerForPoll } from '@/lib/headcount/client'
 import { ALREADY_ANSWERED_MESSAGE, HeadcountUserError, describeError } from '@/lib/headcount/errors'
 import {
@@ -60,24 +65,30 @@ export default function PollScreen() {
   const decimals = mint.data?.decimals ?? 6
   const busy = step !== 'idle'
 
+  const back = { label: 'Today', onPress: () => router.back() }
+
   if (!pollAddress || poll.isError || (poll.isSuccess && !p)) {
     return (
-      <Screen>
-        <BackRow onBack={() => router.back()} />
-        <Empty
-          title="This poll is not on chain"
-          body="The link is wrong or the poll lives on another network. Go back to Today to see the open polls."
-          actionLabel="Back to Today"
-          onAction={() => router.replace('/')}
-        />
+      <Screen back={back}>
+        <View style={{ gap: space.lg }}>
+          <Text variant="question">This ballot is not on chain.</Text>
+          <Text variant="body" style={{ color: color.ink2 }}>
+            The link is wrong, or the ballot lives on another network. Go back to Today to see what is open.
+          </Text>
+          <Button label="Back to Today" kind="outline" onPress={() => router.replace('/')} />
+        </View>
       </Screen>
     )
   }
   if (!p) {
     return (
-      <Screen>
-        <BackRow onBack={() => router.back()} />
-        <ActivityIndicator color={color.stamp} />
+      <Screen back={back}>
+        <View style={{ gap: space.md, paddingVertical: space.xl }}>
+          <TallyProgress height={22} />
+          <Text variant="label" style={{ color: color.ink2 }}>
+            Pulling the ballot from {ACTIVE_CLUSTER.key}
+          </Text>
+        </View>
       </Screen>
     )
   }
@@ -89,7 +100,8 @@ export default function PollScreen() {
   const yourChoice = justAnswered?.choice ?? mine.data?.choice
   const hasAnswered = yourChoice !== undefined || alreadyAnswered
   const reveal = hasAnswered || isCreator
-  const reward = `${formatTokens(p.rewardPerAnswer, decimals)} ${ACTIVE_CLUSTER.rewardLabel}`
+  const rewardShort = `${formatTokens(p.rewardPerAnswer, decimals)} ${UNIT}`
+  const rewardFull = `${money(p.rewardPerAnswer, decimals)} ${UNIT}`
   const canClose = isCreator && !p.closed && (Number(p.closesAt) <= now || full)
 
   async function submit() {
@@ -162,9 +174,11 @@ export default function PollScreen() {
   }
 
   const cta = !reveal && !ended && !full
+  const yourLabel = yourChoice !== undefined ? p.options[yourChoice] : undefined
 
   return (
     <Screen
+      back={back}
       refreshing={poll.isRefetching}
       onRefresh={() => {
         poll.refetch()
@@ -173,167 +187,82 @@ export default function PollScreen() {
       edges={['top', 'bottom']}
       footer={
         cta ? (
-          <View style={{ gap: space.sm }}>
-            {error ? <Notice tone="danger">{error}</Notice> : null}
+          <>
+            {error ? <Problem>{error}</Problem> : null}
             {busy ? (
-              <View style={{ flexDirection: 'row', gap: space.sm, alignItems: 'center' }}>
-                <ActivityIndicator color={color.stamp} />
-                <Text variant="small" style={{ flex: 1 }}>
-                  {STEP_TEXT[step as Exclude<Step, 'idle'>]}
-                </Text>
-              </View>
-            ) : null}
-            <Button label={`Answer and earn ${reward}`} disabled={choice === null} loading={busy} onPress={submit} />
-            <Text variant="monoSmall">
-              {choice === null ? 'Pick an option first. ' : ''}Network fee and account rent, about 0.004 SOL, come from
-              your wallet.
-            </Text>
-          </View>
+              <Text variant="fine">{STEP_TEXT[step as Exclude<Step, 'idle'>]}</Text>
+            ) : (
+              <Text variant="fine">
+                {choice === null ? 'Mark one option to cast.' : 'Costs about 0.004 SOL in fee and rent.'}
+              </Text>
+            )}
+            <Button
+              label={`Cast answer · +${rewardShort}`}
+              disabled={choice === null}
+              loading={busy}
+              onPress={submit}
+            />
+          </>
         ) : undefined
       }
     >
-      <BackRow onBack={() => router.back()} />
-
       <View style={{ gap: space.md }}>
-        <Text variant="title" style={{ fontSize: 28, lineHeight: 32 }}>
+        {p.seekersOnly ? <Stamp label="Seeker phones only" /> : null}
+        <Text variant={questionVariant(p.question)} accessibilityRole="header">
           {p.question}
         </Text>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: space.lg, rowGap: 2 }}>
-          <Text style={{ fontFamily: font.monoSemi, fontSize: 14, color: color.stamp }}>pays {reward}</Text>
-          <Text variant="monoSmall" style={{ alignSelf: 'center', color: p.seekersOnly ? color.stamp : color.inkSoft }}>
-            {p.seekersOnly ? 'Seekers only' : 'Open'}
-          </Text>
-          <Text variant="monoSmall" style={{ alignSelf: 'center' }}>
-            {p.maxAnswers - p.answers} of {p.maxAnswers} left
-          </Text>
-          <Text variant="monoSmall" style={{ alignSelf: 'center' }}>
-            {ended ? 'ended' : `closes in ${timeLeft(p.closesAt)}`}
-          </Text>
-        </View>
+        <PollMeta poll={p} decimals={decimals} ended={ended} hideSeekers />
       </View>
 
       {reveal ? (
-        <View style={{ gap: space.lg }}>
+        <View style={{ gap: space.xl }}>
           {justAnswered ? (
-            <View style={{ gap: space.xs }}>
-              <Text variant="bodyStrong" style={{ color: color.success }}>
-                Counted. {reward} sent to your wallet.
-              </Text>
-              <Pressable
-                accessibilityRole="link"
-                onPress={() => Linking.openURL(explorerTx(justAnswered.signature))}
-                hitSlop={8}
-              >
-                <Text variant="monoSmall" style={{ textDecorationLine: 'underline' }}>
-                  View transaction
-                </Text>
-              </Pressable>
-            </View>
+            <Receipt
+              question={p.question}
+              choice={p.options[justAnswered.choice] ?? ''}
+              reward={rewardFull}
+              signature={justAnswered.signature}
+            />
           ) : alreadyAnswered ? (
-            <Notice tone="warn">
-              {`This ${p.seekersOnly ? 'Seeker phone' : 'phone or wallet'} already answered this poll, so its answer is counted. Results are open.`}
-            </Notice>
+            <Problem>{`This ${p.seekersOnly ? 'Seeker phone' : 'phone or wallet'} already answered this ballot, so its answer is counted. Results are open.`}</Problem>
           ) : isCreator && yourChoice === undefined ? (
-            <Text variant="small">You created this poll, so the tally is open to you.</Text>
+            <Text variant="body" style={{ color: color.ink2 }}>
+              You drafted this ballot, so the tally is open to you.
+            </Text>
           ) : (
-            <Text variant="small">You answered. Results are open.</Text>
+            <Text variant="body" style={{ color: color.ink2 }}>
+              {yourLabel ? `You marked ${yourLabel}. Results are open.` : 'You answered. Results are open.'}
+            </Text>
           )}
           <Results poll={p} yourChoice={yourChoice} />
           {canClose ? (
-            <View style={{ gap: space.sm }}>
-              {error ? <Notice tone="danger">{error}</Notice> : null}
-              <Button
-                label="Close poll and return unused rewards"
-                kind="secondary"
-                loading={busy}
-                onPress={closePoll}
-              />
+            <View style={{ gap: space.md }}>
+              {error ? <Problem>{error}</Problem> : null}
+              <Button label="Close ballot, return unused" kind="outline" loading={busy} onPress={closePoll} />
             </View>
           ) : null}
         </View>
       ) : ended || full ? (
-        <Empty
-          title={full ? 'All answers are in' : 'This poll has ended'}
-          body="Answer open polls on Today to earn. Results stay private to people who answered and to the creator."
-          actionLabel="See open polls"
-          onAction={() => router.replace('/')}
-        />
+        <View style={{ gap: space.lg }}>
+          <Text variant="questionLong">{full ? 'All answers are in.' : 'This ballot has closed.'}</Text>
+          <Text variant="body" style={{ color: color.ink2 }}>
+            Results stay with the people who answered and the one who drafted it. Answer an open ballot to earn.
+          </Text>
+          <Button label="See open polls" kind="outline" onPress={() => router.replace('/')} />
+        </View>
       ) : (
-        <View style={{ gap: space.md }}>
-          {p.options.map((label, i) => (
-            <OptionRow
-              key={i}
-              index={i}
-              label={label}
-              selected={choice === i}
-              disabled={busy}
-              onPress={() => setChoice(i)}
-            />
-          ))}
-          <Text variant="small">Results unlock after you answer.</Text>
+        <View>
+          <BleedRule />
+          <View style={{ marginHorizontal: -space.lg }} accessibilityRole="radiogroup">
+            {p.options.map((label, i) => (
+              <BallotRow key={i} label={label} selected={choice === i} disabled={busy} onPress={() => setChoice(i)} />
+            ))}
+          </View>
+          <Text variant="fine" style={{ marginTop: space.md }}>
+            Results unlock after you answer.
+          </Text>
         </View>
       )}
     </Screen>
-  )
-}
-
-function BackRow({ onBack }: { onBack: () => void }) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel="Back"
-      onPress={onBack}
-      hitSlop={12}
-      style={{ minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' }}
-    >
-      <Text style={{ fontFamily: font.bodySemi, fontSize: 16, color: color.ink }}>Back</Text>
-    </Pressable>
-  )
-}
-
-function OptionRow({
-  index,
-  label,
-  selected,
-  disabled,
-  onPress,
-}: {
-  index: number
-  label: string
-  selected: boolean
-  disabled: boolean
-  onPress: () => void
-}) {
-  return (
-    <Pressable
-      accessibilityRole="radio"
-      accessibilityState={{ selected, disabled }}
-      disabled={disabled}
-      onPress={() => {
-        Haptics.selectionAsync()
-        onPress()
-      }}
-      style={({ pressed }) => ({
-        minHeight: 68,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: space.lg,
-        paddingHorizontal: space.lg,
-        borderRadius: radius.md,
-        borderWidth: selected ? 2.5 : 1.5,
-        borderColor: selected ? color.ink : color.rule,
-        backgroundColor: selected ? color.card : pressed ? color.paperDeep : 'transparent',
-        opacity: disabled && !selected ? 0.5 : 1,
-      })}
-    >
-      <Text
-        style={{ fontFamily: font.monoSemi, fontSize: 16, color: selected ? color.stamp : color.inkFaint, width: 18 }}
-      >
-        {'ABCDEF'[index]}
-      </Text>
-      <Text variant="bodyStrong" style={{ flex: 1, fontSize: 17 }}>
-        {label}
-      </Text>
-    </Pressable>
   )
 }

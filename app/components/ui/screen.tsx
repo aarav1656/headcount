@@ -1,23 +1,27 @@
 import { type PropsWithChildren, type ReactNode } from 'react'
 import { RefreshControl, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { color, space } from '@/constants/theme'
+import { border, color, space } from '@/constants/theme'
+import { Masthead } from '@/components/masthead'
 
 type Props = PropsWithChildren<{
   refreshing?: boolean
   onRefresh?: () => void
   footer?: ReactNode
   edges?: ('top' | 'bottom')[]
+  back?: { label: string; onPress: () => void }
+  wallet?: boolean
 }>
 
-export function Screen({ children, refreshing, onRefresh, footer, edges = ['top'] }: Props) {
+/** Paper ground, masthead first, content in one column, optional pinned footer above the safe area. */
+export function Screen({ children, refreshing, onRefresh, footer, edges = ['top'], back, wallet }: Props) {
   return (
     <SafeAreaView edges={edges} style={{ flex: 1, backgroundColor: color.paper }}>
       <ScrollView
         contentContainerStyle={{
-          paddingHorizontal: space.xl,
-          paddingTop: space.lg,
-          paddingBottom: space.huge,
+          paddingHorizontal: space.lg,
+          paddingTop: space.md,
+          paddingBottom: space.xxl,
           gap: space.xl,
         }}
         keyboardShouldPersistTaps="handled"
@@ -26,20 +30,22 @@ export function Screen({ children, refreshing, onRefresh, footer, edges = ['top'
             <RefreshControl
               refreshing={!!refreshing}
               onRefresh={onRefresh}
-              tintColor={color.stamp}
-              colors={[color.stamp]}
+              tintColor={color.tally}
+              colors={[color.tally]}
             />
           ) : undefined
         }
       >
+        <Masthead back={back} wallet={wallet} />
         {children}
       </ScrollView>
       {footer ? (
         <View
           style={{
-            paddingHorizontal: space.xl,
+            paddingHorizontal: space.lg,
             paddingVertical: space.md,
-            borderTopWidth: 1,
+            gap: space.sm,
+            borderTopWidth: border.hair,
             borderTopColor: color.rule,
             backgroundColor: color.paper,
           }}
@@ -51,6 +57,15 @@ export function Screen({ children, refreshing, onRefresh, footer, edges = ['top'
   )
 }
 
-export function Rule() {
-  return <View style={{ height: 1, backgroundColor: color.rule }} />
+export function Rule({ heavy }: { heavy?: boolean }) {
+  return <View style={{ height: heavy ? border.heavy : border.hair, backgroundColor: color.rule }} />
+}
+
+/** A rule that runs edge to edge, to sit over rows that bleed past the gutter. */
+export function BleedRule() {
+  return (
+    <View style={{ marginHorizontal: -space.lg }}>
+      <Rule />
+    </View>
+  )
 }

@@ -2,10 +2,58 @@ import { Pressable, View } from 'react-native'
 import { Tabs } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs'
-import { color, font, space } from '@/constants/theme'
+import { border, color } from '@/constants/theme'
 import { Text } from '@/components/ui/text'
+import { useFocus } from '@/components/ui/focus'
 
 const LABELS: Record<string, string> = { index: 'Today', create: 'Create', me: 'Me' }
+
+/** Section index along the foot of the page: three mono labels between ink rules, the open one underlined in red. */
+function Tab({
+  label,
+  focused,
+  onPress,
+  first,
+}: {
+  label: string
+  focused: boolean
+  onPress: () => void
+  first: boolean
+}) {
+  const { bind, ring } = useFocus(-4)
+  return (
+    <Pressable
+      accessibilityRole="tab"
+      accessibilityState={{ selected: focused }}
+      onPress={onPress}
+      {...bind}
+      style={({ pressed }) => [
+        {
+          flex: 1,
+          minHeight: 56,
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderLeftWidth: first ? 0 : border.hair,
+          borderLeftColor: color.rule,
+          backgroundColor: pressed ? color.paper2 : 'transparent',
+        },
+        ring,
+      ]}
+    >
+      <Text variant="action" style={{ color: focused ? color.ink : color.ink3 }}>
+        {label}
+      </Text>
+      <View
+        style={{
+          marginTop: 4,
+          height: border.heavy,
+          width: 28,
+          backgroundColor: focused ? color.tally : 'transparent',
+        }}
+      />
+    </Pressable>
+  )
+}
 
 function TabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets()
@@ -14,7 +62,7 @@ function TabBar({ state, navigation }: BottomTabBarProps) {
       style={{
         flexDirection: 'row',
         backgroundColor: color.paper,
-        borderTopWidth: 1,
+        borderTopWidth: border.hair,
         borderTopColor: color.rule,
         paddingBottom: insets.bottom,
       }}
@@ -22,36 +70,16 @@ function TabBar({ state, navigation }: BottomTabBarProps) {
       {state.routes.map((route, i) => {
         const focused = state.index === i
         return (
-          <Pressable
+          <Tab
             key={route.key}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: focused }}
+            first={i === 0}
+            focused={focused}
+            label={LABELS[route.name] ?? route.name}
             onPress={() => {
               const e = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true })
               if (!focused && !e.defaultPrevented) navigation.navigate(route.name)
             }}
-            style={({ pressed }) => ({
-              flex: 1,
-              minHeight: 56,
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: space.xs,
-              backgroundColor: pressed ? color.paperDeep : 'transparent',
-            })}
-          >
-            <View
-              style={{ width: 22, height: 3, borderRadius: 2, backgroundColor: focused ? color.stamp : 'transparent' }}
-            />
-            <Text
-              style={{
-                fontFamily: focused ? font.bodySemi : font.bodyMedium,
-                fontSize: 15,
-                color: focused ? color.ink : color.inkSoft,
-              }}
-            >
-              {LABELS[route.name] ?? route.name}
-            </Text>
-          </Pressable>
+          />
         )
       })}
     </View>

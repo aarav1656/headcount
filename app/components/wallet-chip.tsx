@@ -1,17 +1,21 @@
 import { useState } from 'react'
 import { Pressable, View } from 'react-native'
-import { color, font, radius } from '@/constants/theme'
+import { border, color, space } from '@/constants/theme'
+import { ACTIVE_CLUSTER } from '@/constants/headcount'
 import { ellipsify } from '@/utils/ellipsify'
 import { Text } from '@/components/ui/text'
+import { Pointer } from '@/components/ui/glyphs'
+import { useFocus } from '@/components/ui/focus'
 import { describeError } from '@/lib/headcount/errors'
 import { forgetSession } from '@/lib/headcount/session'
 import { useHeadcountWallet } from '@/features/headcount/use-headcount-wallet'
 
-/** Connect when signed out, wallet address when signed in. Tap the address to disconnect. */
+/** The wallet line: cluster and address on the left, connect or disconnect on the right. */
 export function WalletChip() {
   const { account, connect, disconnect } = useHeadcountWallet()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { bind, ring } = useFocus()
 
   async function toggle() {
     setBusy(true)
@@ -32,29 +36,37 @@ export function WalletChip() {
   }
 
   return (
-    <View style={{ alignItems: 'flex-end', gap: 4 }}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={account ? `Wallet ${account.address}. Tap to disconnect` : 'Connect wallet'}
-        onPress={toggle}
-        disabled={busy}
-        style={({ pressed }) => ({
-          minHeight: 44,
-          paddingHorizontal: 14,
-          justifyContent: 'center',
-          borderRadius: radius.md,
-          borderWidth: 1.5,
-          borderColor: color.ink,
-          backgroundColor: pressed ? color.paperDeep : 'transparent',
-          opacity: busy ? 0.5 : 1,
-        })}
-      >
-        <Text style={{ fontFamily: account ? font.monoMedium : font.bodySemi, fontSize: 14, color: color.ink }}>
-          {account ? ellipsify(account.address, 4, '...') : 'Connect'}
+    <View style={{ borderBottomWidth: border.hair, borderBottomColor: color.rule }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Text variant="label" style={{ color: color.ink2, flexShrink: 1 }} numberOfLines={1}>
+          {ACTIVE_CLUSTER.key} · {account ? ellipsify(account.address, 4, '..') : 'no wallet'}
         </Text>
-      </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={account ? `Wallet ${account.address}. Disconnect` : 'Connect wallet'}
+          onPress={toggle}
+          disabled={busy}
+          {...bind}
+          style={({ pressed }) => [
+            {
+              minHeight: 44,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: space.sm,
+              paddingLeft: space.md,
+              backgroundColor: pressed ? color.paper2 : 'transparent',
+            },
+            ring,
+          ]}
+        >
+          <Text variant="label" style={{ color: busy ? color.ink3 : color.ink }}>
+            {busy ? 'waiting' : account ? 'disconnect' : 'connect'}
+          </Text>
+          {account || busy ? null : <Pointer />}
+        </Pressable>
+      </View>
       {error ? (
-        <Text variant="monoSmall" style={{ color: color.danger, maxWidth: 220, textAlign: 'right' }}>
+        <Text variant="fine" style={{ color: color.warn, paddingBottom: space.sm }}>
           {error}
         </Text>
       ) : null}
