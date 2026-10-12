@@ -85,6 +85,17 @@ note "wallet credential confirmed=$AUTH"
 [ "$AUTH" = 1 ] || FAILED=1
 snap 00-wallet-authenticated
 
+# fallback: if the wallet asks for the device credential again mid-flow, answer it from the system log
+adb logcat -T 1 -s AuthController:D | while read -r line; do
+  case "$line" in
+    *showAuthenticationDialog*)
+      note "credential prompt shown again, entering PIN"
+      (sleep 4; adb shell input text "$PIN"; adb shell input keyevent 66) &
+      ;;
+  esac
+done &
+WATCH=$!
+
 adb shell input keyevent 3
 sleep 1
 
@@ -125,6 +136,7 @@ fi
 fi
 
 # ---- stop recording, collect
+kill "$WATCH" 2> /dev/null
 sleep 2
 adb shell rm -f /sdcard/rec.on
 adb shell pkill -2 -x screenrecord
